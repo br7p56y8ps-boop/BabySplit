@@ -7,6 +7,7 @@ import ConfirmModal from './ConfirmModal';
 import { getExpenseStatus } from '../lib/settlementUtils';
 import EditExpenseModal from './EditExpenseModal';
 
+
 interface HomeDetailModalProps {
   exp: Expense;
   onClose: () => void;
