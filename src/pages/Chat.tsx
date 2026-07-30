@@ -55,10 +55,9 @@ export default function Chat() {
   };
 
   return (
-    <div className="absolute inset-0 flex flex-col overflow-hidden w-full h-full">
-      
-      {/* HEADER */}
-      <div className="shrink-0 flex items-center justify-between mb-3 mt-2 px-1">
+    <div className="flex flex-col h-full min-h-0 relative overflow-hidden">
+      {/* SECTION 1: Fixed Header (Below App Bar) */}
+      <div className="flex items-center justify-between mb-3 shrink-0 pb-1">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-extrabold tracking-tight">Space Chat</h1>
           <button onClick={handleRefresh} className={`p-2 glass-button rounded-full ${isRefreshing ? 'animate-spin' : ''}`}>
@@ -67,10 +66,10 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* MESSAGES */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 pb-2 scroll-smooth">
+      {/* SECTION 2: Scrollable Messages Container */}
+      <div className="flex-1 overflow-y-auto min-h-0 space-y-3 pr-1 pb-3">
         {messages.length === 0 ? (
-          <div className="text-center p-10 glass-panel rounded-3xl text-gray-500 dark:text-gray-400 mt-4">
+          <div className="text-center p-10 glass-panel rounded-3xl text-gray-500 dark:text-gray-400">
             No messages yet. Send a message to start chatting!
           </div>
         ) : (
@@ -92,16 +91,15 @@ export default function Chat() {
         <div ref={bottomRef} />
       </div>
 
-      {/* COMPOSER */}
-      {/* Note: Changed input to text-base to prevent iOS auto-zoom on focus */}
-      <div className="shrink-0 mt-auto pt-2 pb-4 px-1 bg-transparent">
+      {/* SECTION 3: Fixed Composer Container (Above Bottom Navigation Bar) */}
+      <div className="shrink-0 pt-2 pb-1 bg-transparent">
         <form onSubmit={handleSend} className="flex gap-2 items-center glass p-2 rounded-2xl border border-white/20 dark:border-white/10 shadow-xl">
           <input 
             type="text" 
             inputMode="text"
             value={newMessage} 
             onChange={e => setNewMessage(e.target.value)} 
-            className="glass-input flex-1 border-none bg-transparent focus:ring-0 text-base py-2 px-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 outline-none" 
+            className="glass-input flex-1 border-none bg-transparent focus:ring-0 text-sm py-2 px-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400" 
             placeholder="Type a message..."
           />
           <button 
@@ -113,7 +111,6 @@ export default function Chat() {
           </button>
         </form>
       </div>
-      
     </div>
   );
 }
