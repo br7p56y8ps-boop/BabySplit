@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppProvider, useAppContext } from './contexts/AppContext';
 import BottomNav from './components/BottomNav';
 import TopBar from './components/TopBar';
@@ -15,8 +15,10 @@ import History from './pages/History';
 import Settings from './pages/Settings';
 import IdentityGate from './components/IdentityGate';
 
-const AppLayout = () => {
+const AppContent = () => {
   const { isLoading, activeIdentityId } = useAppContext();
+  const location = useLocation();
+  const isChat = location.pathname === '/chat';
 
   if (isLoading) {
     return (
@@ -27,9 +29,15 @@ const AppLayout = () => {
   }
 
   return (
-    <div className="min-h-screen pb-20 flex flex-col">
+    <div className="h-screen h-[100dvh] flex flex-col overflow-hidden">
       <TopBar />
-      <main className="flex-1 overflow-y-auto px-4 py-6 w-full max-w-3xl mx-auto">
+      <main 
+        className={`w-full max-w-3xl mx-auto px-4 pt-3 pb-24 ${
+          isChat 
+            ? 'flex-1 min-h-0 flex flex-col overflow-hidden' 
+            : 'flex-1 overflow-y-auto'
+        }`}
+      >
         {!activeIdentityId ? (
           <IdentityGate />
         ) : (
@@ -64,7 +72,7 @@ export default function App() {
   return (
     <AppProvider>
       <BrowserRouter>
-        <AppLayout />
+        <AppContent />
       </BrowserRouter>
     </AppProvider>
   );
