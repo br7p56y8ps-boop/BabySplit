@@ -7,7 +7,7 @@ import ConfirmModal from '../components/ConfirmModal';
 import SpaceManagementModal from '../components/SpaceManagementModal';
 import ExportPdfModal from '../components/ExportPdfModal';
 import { Expense } from '../types';
-import { getExpenseStatus, calculateExpenseSettlementSummary } from '../lib/settlementUtils';
+import { getExpenseStatus } from '../lib/settlementUtils';
 import { isUserSpaceCreator, isMemberCreator } from '../lib/spaceUtils';
 
 export default function Settings() {
@@ -48,13 +48,11 @@ export default function Settings() {
 
   expenses.forEach(exp => {
     const status = getExpenseStatus(exp);
-    const { totalOwed } = calculateExpenseSettlementSummary(exp);
-    const settledAmount = exp.totalAmount - totalOwed;
 
-    totalSettled += settledAmount;
-    totalUnsettled += totalOwed;
-
-    if (status !== 'Fully Settled') {
+    if (status === 'Fully Settled') {
+      totalSettled += exp.totalAmount;
+    } else {
+      totalUnsettled += exp.totalAmount;
       unsettledCount++;
     }
   });
@@ -365,5 +363,3 @@ export default function Settings() {
     </div>
   );
 }
-
-
