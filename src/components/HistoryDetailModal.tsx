@@ -134,11 +134,6 @@ export default function HistoryDetailModal({
                 </div>
               )}
             </div>
-            </div>
-              ))}
-           </div>
-         </div>
-            )}
           </div>
 
           {/* Footer - Undo Button */}
