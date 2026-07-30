@@ -25,7 +25,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [spacesAccess, setSpacesAccess] = useState<SpaceMember[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -45,44 +44,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'spaceMembers'), where('uid', '==', user.uid));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const access: SpaceMember[] = [];
-      snapshot.forEach((doc) => access.push({ id: doc.id, ...doc.data() } as SpaceMember));
-      setSpacesAccess(access);
-    });
+
+    // Listen to ALL spaces in Firestore so every device/member receives spaces in real-time
+    const unsubscribe = onSnapshot(
+      collection(db, 'spaces'),
+      (snapshot) => {
+        const loadedSpaces: Space[] = [];
+        snapshot.forEach((doc) => {
+          loadedSpaces.push({ id: doc.id, ...doc.data() } as Space);
+        });
+
+        // Ensure Public Space stays at the top, followed by Private Spaces sorted by createdAt
+        loadedSpaces.sort((a, b) => {
+          if (a.id === PUBLIC_SPACE_ID) return -1;
+          if (b.id === PUBLIC_SPACE_ID) return 1;
+          return (a.createdAt || 0) - (b.createdAt || 0);
+        });
+
+        setSpaces(loadedSpaces);
+        setIsLoading(false);
+
+        // If active space no longer exists, reset to public space
+        if (activeSpaceId !== PUBLIC_SPACE_ID && !loadedSpaces.some(s => s.id === activeSpaceId)) {
+          setActiveSpaceId(PUBLIC_SPACE_ID);
+          setActiveIdentityId(null);
+        }
+      },
+      (err) => {
+        console.error('Spaces real-time listener error:', err);
+        setIsLoading(false);
+      }
+    );
+
     return () => unsubscribe();
-  }, [user]);
-
-  useEffect(() => {
-    if (!user || spacesAccess.length === 0) return;
-    
-    const spaceIds = spacesAccess.map(sa => sa.spaceId);
-    
-    const unsubs = spaceIds.map(id => {
-       const spaceRef = doc(db, 'spaces', id);
-       return onSnapshot(spaceRef, (docSnap) => {
-         if (docSnap.exists()) {
-           const spaceData = { id: docSnap.id, ...docSnap.data() } as Space;
-           setSpaces(prev => {
-             const filtered = prev.filter(s => s.id !== docSnap.id);
-             return [...filtered, spaceData];
-           });
-         } else {
-           setSpaces(prev => prev.filter(s => s.id !== id));
-           if (activeSpaceId === id) {
-             setActiveSpaceId(PUBLIC_SPACE_ID);
-             setActiveIdentityId(null);
-           }
-         }
-       }, (err) => {
-         console.error('Space doc listener error:', err);
-       });
-    });
-
-    setIsLoading(false);
-    return () => unsubs.forEach(unsub => unsub());
-  }, [spacesAccess, user]);
+  }, [user, activeSpaceId]);
 
   useEffect(() => {
     if (!user || !activeSpaceId) return;
