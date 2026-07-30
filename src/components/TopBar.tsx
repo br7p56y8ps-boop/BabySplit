@@ -1,15 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../contexts/AppContext';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { Bell, ChevronDown } from 'lucide-react';
 import SpaceSwitcher from './SpaceSwitcher';
 import NotificationsModal from './NotificationsModal';
 
+const parseTimestamp = (ts: any): number => {
+  if (!ts) return 0;
+  if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
+    return ts.toDate().getTime();
+  }
+  if (typeof ts === 'object' && 'seconds' in ts) {
+    return ts.seconds * 1000;
+  }
+  return new Date(ts).getTime();
+};
+
 export default function TopBar() {
-  const { spaces, activeSpaceId } = useAppContext();
+  const { spaces, activeSpaceId, user } = useAppContext();
   const [isSpaceSwitcherOpen, setSpaceSwitcherOpen] = useState(false);
   const [isNotificationsOpen, setNotificationsOpen] = useState(false);
+  const [hasUnreadNotifs, setHasUnreadNotifs] = useState(false);
 
   const activeSpace = spaces.find(s => s.id === activeSpaceId);
+
+  useEffect(() => {
+    if (!user || !activeSpaceId) return;
+
+    const storageKey = `last_seen_notif_${activeSpaceId}`;
+    const lastSeen = Number(localStorage.getItem(storageKey) || 0);
+
+    const q = query(
+      collection(db, 'notifications'),
+      where('spaceId', '==', activeSpaceId)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      let unread = false;
+      snap.forEach((doc) => {
+        const data = doc.data();
+        const ts = parseTimestamp(data.timestamp);
+        if (ts > lastSeen) {
+          unread = true;
+        }
+      });
+      setHasUnreadNotifs(unread);
+    });
+
+    return () => unsub();
+  }, [user, activeSpaceId]);
+
+  const handleOpenNotifications = () => {
+    if (activeSpaceId) {
+      localStorage.setItem(`last_seen_notif_${activeSpaceId}`, Date.now().toString());
+    }
+    setHasUnreadNotifs(false);
+    setNotificationsOpen(true);
+  };
 
   return (
     <>
@@ -31,10 +79,13 @@ export default function TopBar() {
         </button>
 
         <button 
-          onClick={() => setNotificationsOpen(true)}
+          onClick={handleOpenNotifications}
           className="w-10 h-10 rounded-full flex items-center justify-center glass-button relative shrink-0"
         >
           <Bell className="w-5 h-5 text-gray-700 dark:text-gray-200" />
+          {hasUnreadNotifs && (
+            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white dark:ring-gray-900 animate-pulse" />
+          )}
         </button>
       </header>
 
