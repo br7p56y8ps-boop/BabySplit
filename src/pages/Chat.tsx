@@ -55,9 +55,9 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col w-full relative overflow-hidden">
+    <div className="flex flex-col h-full w-full overflow-hidden">
       {/* SECTION 1: Fixed Header (Below App Bar) */}
-      <div className="flex items-center justify-between mb-3 shrink-0 pb-1">
+      <div className="flex-none shrink-0 flex items-center justify-between mb-3 pb-1">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-extrabold tracking-tight">Space Chat</h1>
           <button onClick={handleRefresh} className={`p-2 glass-button rounded-full ${isRefreshing ? 'animate-spin' : ''}`}>
@@ -67,7 +67,7 @@ export default function Chat() {
       </div>
 
       {/* SECTION 2: Scrollable Messages Container */}
-      <div className="flex-1 overflow-y-auto min-h-0 space-y-3 pr-1 pb-3">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 pb-2">
         {messages.length === 0 ? (
           <div className="text-center p-10 glass-panel rounded-3xl text-gray-500 dark:text-gray-400">
             No messages yet. Send a message to start chatting!
@@ -92,7 +92,7 @@ export default function Chat() {
       </div>
 
       {/* SECTION 3: Fixed Composer Container (Above Bottom Navigation Bar) */}
-      <div className="shrink-0 pt-2 pb-1 bg-transparent">
+      <div className="flex-none shrink-0 pt-2 pb-1 bg-transparent">
         <form onSubmit={handleSend} className="flex gap-2 items-center glass p-2 rounded-2xl border border-white/20 dark:border-white/10 shadow-xl">
           <input 
             type="text" 
