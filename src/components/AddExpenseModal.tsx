@@ -150,7 +150,7 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
 
           <form id="add-expense-form" onSubmit={handleSave} className="space-y-4">
             {/* ROW 1: Title & Date */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+            <div className="grid grid-cols-[6fr_4fr] gap-3 w-full">
               <div className="w-full min-w-0">
                 <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Expense Title</label>
                 <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="glass-input h-[48px] !py-0 w-full min-w-0 text-sm px-3" placeholder="Dinner" required />
@@ -162,7 +162,7 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* ROW 2: Total Amount & Currency */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+            <div className="grid grid-cols-2 gap-3 w-full">
               <div className="w-full min-w-0">
                 <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Total Amount</label>
                 <div className="glass-input h-[48px] !py-0 w-full min-w-0 bg-white/5 opacity-80 cursor-not-allowed font-bold flex items-center px-3 overflow-hidden text-sm">
