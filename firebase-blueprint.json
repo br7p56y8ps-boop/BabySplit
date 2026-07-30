@@ -1,0 +1,131 @@
+{
+  "entities": {
+    "Space": {
+      "title": "Space",
+      "description": "A workspace for sharing expenses.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "type": { "type": "string", "enum": ["public", "private"] },
+        "joinPin": { "type": "string", "maxLength": 20 },
+        "creatorUid": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["name", "type", "creatorUid", "createdAt"]
+    },
+    "SpaceMember": {
+      "title": "Space Member",
+      "description": "Mapping of a UID to a Space to grant access.",
+      "type": "object",
+      "properties": {
+        "spaceId": { "type": "string", "maxLength": 128 },
+        "uid": { "type": "string", "maxLength": 128 },
+        "joinedAt": { "type": "number" }
+      },
+      "required": ["spaceId", "uid", "joinedAt"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "A person in a space.",
+      "type": "object",
+      "properties": {
+        "spaceId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "pin": { "type": "string", "maxLength": 20 },
+        "isTemporary": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["spaceId", "name", "pin", "isTemporary", "createdAt"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "An expense in a space.",
+      "type": "object",
+      "properties": {
+        "spaceId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "date": { "type": "number" },
+        "currency": { "type": "string", "enum": ["Taka", "INR", "USD"] },
+        "paidBy": { "type": "object", "description": "Map of memberId to amount" },
+        "participants": { "type": "array", "items": { "type": "string", "maxLength": 128 } },
+        "totalAmount": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["spaceId", "title", "date", "currency", "paidBy", "participants", "totalAmount", "createdAt", "updatedAt"]
+    },
+    "History": {
+      "title": "History",
+      "description": "A settlement record.",
+      "type": "object",
+      "properties": {
+        "spaceId": { "type": "string", "maxLength": 128 },
+        "debtorId": { "type": "string", "maxLength": 128 },
+        "creditorId": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "expenseId": { "type": "string", "maxLength": 128, "description": "ID of expense, or 'multiple'" },
+        "type": { "type": "string", "enum": ["full", "partial"] },
+        "settledAt": { "type": "number" },
+        "settledById": { "type": "string", "maxLength": 128 },
+        "undone": { "type": "boolean" }
+      },
+      "required": ["spaceId", "debtorId", "creditorId", "amount", "currency", "expenseId", "type", "settledAt", "settledById", "undone"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "A message in a space.",
+      "type": "object",
+      "properties": {
+        "spaceId": { "type": "string", "maxLength": 128 },
+        "memberId": { "type": "string", "maxLength": 128 },
+        "memberName": { "type": "string", "maxLength": 100 },
+        "message": { "type": "string", "maxLength": 1000 },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["spaceId", "memberId", "memberName", "message", "timestamp"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "A notification for a space.",
+      "type": "object",
+      "properties": {
+        "spaceId": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["new_expense", "expense_edited", "expense_deleted", "settlement_completed", "conflicting_edit"] },
+        "message": { "type": "string", "maxLength": 500 },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["spaceId", "type", "message", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/spaces/{spaceId}": {
+      "schema": { "$ref": "#/entities/Space" },
+      "description": "Spaces registry"
+    },
+    "/spaceMembers/{spaceMemberId}": {
+      "schema": { "$ref": "#/entities/SpaceMember" },
+      "description": "Access mappings for spaces"
+    },
+    "/members/{memberId}": {
+      "schema": { "$ref": "#/entities/Member" },
+      "description": "Members in a space"
+    },
+    "/expenses/{expenseId}": {
+      "schema": { "$ref": "#/entities/Expense" },
+      "description": "Expenses in a space"
+    },
+    "/history/{historyId}": {
+      "schema": { "$ref": "#/entities/History" },
+      "description": "Settlements in a space"
+    },
+    "/chatMessages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Chat messages in a space"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Notifications in a space"
+    }
+  }
+}
