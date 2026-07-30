@@ -65,8 +65,9 @@ export default function Settlement() {
   };
 
   return (
-    <div className="space-y-6 pb-10">
-      <div className="flex items-center justify-between mb-2">
+    <div className="flex-1 min-h-0 flex flex-col w-full relative overflow-hidden">
+      {/* Fixed Title & Actions Header */}
+      <div className="flex items-center justify-between mb-3 shrink-0">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-extrabold tracking-tight">Settlement</h1>
           <button onClick={handleRefresh} className={`p-2 glass-button rounded-full ${isRefreshing ? 'animate-spin' : ''}`}>
@@ -94,7 +95,8 @@ export default function Settlement() {
         )}
       </div>
 
-      <div className="space-y-3">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto min-h-0 pr-1 space-y-3 pb-2">
         {activeExpenses.length === 0 ? (
           <div className="text-center p-10 glass-panel rounded-3xl text-gray-500">
             No active expenses to settle. All settled expenses are moved to History!
