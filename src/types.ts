@@ -1,12 +1,13 @@
 export const PUBLIC_SPACE_ID = 'public';
 
-
 export interface Space {
   id: string;
   name: string;
   type: 'public' | 'private';
   joinPin?: string;
   creatorUid: string;
+  creatorMemberId?: string;
+  creatorMemberName?: string;
   createdAt: number;
 }
 
