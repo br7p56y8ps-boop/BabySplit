@@ -1,17 +1,16 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { format } from 'date-fns';
 import { Space, Member, Expense } from '../types';
 import { calculateExpenseTransactions, getExpenseStatus } from './settlementUtils';
-import { format } from 'date-fns';
 
-function cleanCurrencySymbol(symbol: string): string {
-  if (!symbol) return 'USD';
-  const s = symbol.trim();
-  if (s === '৳') return 'BDT';
-  if (s === '₹') return 'INR';
-  if (s === '€') return 'EUR';
-  if (s === '£') return 'GBP';
-  if (s === '¥') return 'JPY';
+function cleanCurrencySymbol(c?: string): string {
+  if (!c) return '৳';
+  const lower = c.toLowerCase().trim();
+  if (lower === 'taka' || lower === 'bdt' || lower === '৳') return '৳';
+  if (lower === 'inr' || lower === '₹') return '₹';
+  if (lower === 'usd' || lower === '$') return '$';
+  const s = c.trim();
   return s;
 }
 
@@ -22,7 +21,7 @@ function calculateNetMinimumTransfers(expenses: Expense[]): { from: string; to: 
   expenses.forEach(exp => {
     if (!exp.participants || exp.participants.length === 0) return;
     const share = exp.totalAmount / exp.participants.length;
-    if (exp.currency) defaultCurrency = exp.currency.trim();
+    if (exp.currency) defaultCurrency = cleanCurrencySymbol(exp.currency);
 
     // Payers
     Object.entries(exp.paidBy || {}).forEach(([payer, amt]) => {
@@ -77,118 +76,114 @@ export function exportSpaceDataToPDF(
   space: Space,
   members: Member[],
   expenses: Expense[],
-  filter: 'all' | 'settled' | 'unsettled' = 'all'
+  filter: 'all' | 'settled' | 'unsettled'
 ) {
   const doc = new jsPDF();
-  const getMemberName = (id: string) => members.find(m => m.id === id)?.name || id || 'Unknown';
-  const exportTime = format(new Date(), 'dd MMM yyyy, HH:mm:ss');
+  const safeSpaceName = space.name || 'Space';
 
-  let currentY = 15;
+  // Helper mapping member ID -> Name
+  const getMemberName = (id: string) => {
+    const m = members.find((mem) => mem.id === id);
+    return m ? m.name : 'Unknown';
+  };
 
-  // Header Title
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(20);
-  doc.setTextColor(37, 99, 235); // Blue
-  doc.text('Expense Splitter Report', 14, currentY);
-
-  currentY += 8;
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 100, 100);
-  doc.text(`Generated on ${exportTime}`, 14, currentY);
-
-  currentY += 10;
-
-  // 1. Space Information
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.setTextColor(17, 24, 39);
-  doc.text('1. Space Information', 14, currentY);
-  currentY += 4;
-
-  autoTable(doc, {
-    startY: currentY,
-    head: [['Attribute', 'Value']],
-    body: [
-      ['Space Name', space.name],
-      ['Space Type', space.type.toUpperCase()],
-      ['Export Date & Time', exportTime],
-    ],
-    theme: 'grid',
-    headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
-    styles: { fontSize: 9, cellPadding: 3 },
-  });
-
-  currentY = (doc as any).lastAutoTable.finalY + 10;
-
-  // 2. Active Space Members
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.setTextColor(17, 24, 39);
-  doc.text('2. Space Members', 14, currentY);
-  currentY += 4;
-
-  const membersBody = members.map(m => [
-    m.name,
-    m.isTemporary ? 'Guest' : 'Member',
-  ]);
-
-  autoTable(doc, {
-    startY: currentY,
-    head: [['Member Name', 'Role / Status']],
-    body: membersBody.length > 0 ? membersBody : [['No members found', '-']],
-    theme: 'striped',
-    headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
-    styles: { fontSize: 9, cellPadding: 3 },
-  });
-
-  currentY = (doc as any).lastAutoTable.finalY + 10;
-
-  // 3. Expense Report
-  if (currentY > 230) {
-    doc.addPage();
-    currentY = 15;
-  }
-
-  // Filter expenses according to selected filter
-  const filteredExpenses = expenses.filter(exp => {
+  // Filter expenses based on user selection
+  const filteredExpenses = expenses.filter((exp) => {
     const status = getExpenseStatus(exp);
     if (filter === 'settled') return status === 'Fully Settled';
     if (filter === 'unsettled') return status !== 'Fully Settled';
     return true;
   });
 
-  const filterTitle = 
-    filter === 'settled' 
-      ? '3. Expense Report (Settled Only)' 
-      : filter === 'unsettled' 
-      ? '3. Expense Report (Unsettled Only)' 
-      : '3. Expense Report (All Expenses)';
+  let currentY = 15;
 
+  // Header Title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(16, 185, 129); // Emerald color
+  doc.text(`${safeSpaceName} - Financial Summary`, 14, currentY);
+
+  currentY += 8;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Generated on: ${format(new Date(), 'PPpp')} | Filter: ${filter.toUpperCase()}`, 14, currentY);
+
+  currentY += 10;
+
+  // 1. Space Information Section
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(17, 24, 39);
-  doc.text(filterTitle, 14, currentY);
+  doc.text('Space Information', 14, currentY);
+
   currentY += 4;
+  autoTable(doc, {
+    startY: currentY,
+    head: [['Space Name', 'Type', 'Total Members', 'Created Date']],
+    body: [
+      [
+        space.name,
+        space.type.toUpperCase(),
+        members.length.toString(),
+        space.createdAt ? format(new Date(space.createdAt), 'PPP') : 'N/A',
+      ],
+    ],
+    theme: 'grid',
+    headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+    styles: { fontSize: 9, cellPadding: 3 },
+  });
 
-  const expensesBody = filteredExpenses.map(exp => {
-    const dateStr = exp.date ? format(new Date(exp.date), 'dd/MM/yyyy') : '-';
+  currentY = (doc as any).lastAutoTable.finalY + 10;
+
+  // 2. Members List Section
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(17, 24, 39);
+  doc.text('Space Members', 14, currentY);
+
+  currentY += 4;
+  const membersBody = members.map((m, idx) => [
+    (idx + 1).toString(),
+    m.name,
+    m.isPreset ? 'Preset Member' : m.isTemporary ? 'Temporary Member' : 'Regular Member',
+  ]);
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [['#', 'Member Name', 'Role/Type']],
+    body: membersBody.length > 0 ? membersBody : [['-', 'No members found', '-']],
+    theme: 'grid',
+    headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+    styles: { fontSize: 9, cellPadding: 3 },
+  });
+
+  currentY = (doc as any).lastAutoTable.finalY + 10;
+
+  // 3. Expenses Report Section
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(17, 24, 39);
+  doc.text('Expense Report', 14, currentY);
+
+  currentY += 4;
+  const expensesBody = filteredExpenses.map((exp) => {
     const currencyStr = cleanCurrencySymbol(exp.currency);
-    const totalAmtStr = `${currencyStr} ${exp.totalAmount.toFixed(2)}`;
-
-    // Paid By
+    
+    // Paid By details
     const paidByStr = Object.entries(exp.paidBy || {})
-      .map(([pId, amt]) => `${getMemberName(pId)}: ${currencyStr} ${amt.toFixed(2)}`)
+      .map(([mId, amt]) => `${getMemberName(mId)}: ${currencyStr}${amt}`)
       .join(', ');
 
     // Participants
-    const participantsList = (exp.participants || []).map(pId => getMemberName(pId));
-    const participantsStr = participantsList.join(', ');
+    const participantsStr = (exp.participants || [])
+      .map((mId) => getMemberName(mId))
+      .join(', ');
 
     // Equal Share
-    const numP = participantsList.length || 1;
-    const equalShareVal = (exp.totalAmount / numP).toFixed(2);
-    const equalShareStr = `${currencyStr} ${equalShareVal} / person`;
+    const pCount = exp.participants?.length || 1;
+    const shareAmt = (exp.totalAmount / pCount).toFixed(2);
+    const equalShareStr = `${currencyStr}${shareAmt} / person`;
 
     // Settlement Status
     const status = getExpenseStatus(exp);
@@ -196,17 +191,15 @@ export function exportSpaceDataToPDF(
     // Settled Date & Settled By
     let settledInfo = 'Not Settled';
     if (exp.settledAt) {
-      const settledDate = format(new Date(exp.settledAt), 'dd/MM/yyyy');
-      const settledBy = getMemberName(exp.settledById || '');
-      settledInfo = `${settledDate}${settledBy ? ` by ${settledBy}` : ''}`;
-    } else if (status === 'Partially Settled') {
-      settledInfo = 'Partially Settled';
+      const settledDate = format(new Date(exp.settledAt), 'PP');
+      const settledBy = exp.settledById ? getMemberName(exp.settledById) : 'Unknown';
+      settledInfo = `${settledDate}\nBy: ${settledBy}`;
     }
 
     return [
       exp.title,
-      dateStr,
-      totalAmtStr,
+      format(new Date(exp.date), 'PP'),
+      `${currencyStr}${exp.totalAmount}`,
       paidByStr,
       participantsStr,
       equalShareStr,
@@ -229,9 +222,10 @@ export function exportSpaceDataToPDF(
         'Settled Date & By',
       ],
     ],
-    body: expensesBody.length > 0 
-      ? expensesBody 
-      : [['No matching expenses recorded', '-', '-', '-', '-', '-', '-', '-']],
+    body:
+      expensesBody.length > 0
+        ? expensesBody
+        : [['No matching expenses recorded', '-', '-', '-', '-', '-', '-', '-']],
     theme: 'grid',
     headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
     styles: { fontSize: 8, cellPadding: 2.5 },
@@ -378,16 +372,17 @@ export function exportSpaceDataToPDF(
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184);
     doc.text(
-      `Expense Splitter • Page ${i} of ${totalPages} • Exported on ${exportTime}`,
-      14,
-      doc.internal.pageSize.height - 8
+      `Page ${i} of ${totalPages}`,
+      doc.internal.pageSize.width / 2,
+      doc.internal.pageSize.height - 10,
+      { align: 'center' }
     );
   }
 
-  // Save file with clean name
-  const safeSpaceName = space.name.replace(/[^a-zA-Z0-9]/g, '_');
+  // Save the PDF
   const fileName = `ExpenseReport_${safeSpaceName}_${filter}_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`;
   doc.save(fileName);
 }
