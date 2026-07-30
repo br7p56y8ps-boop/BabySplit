@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Expense } from '../types';
-import { X, Trash2, RefreshCcw } from 'lucide-react';
+import { X, Trash2, RefreshCcw, Pencil } from 'lucide-react';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import ConfirmModal from './ConfirmModal';
 import { getExpenseStatus } from '../lib/settlementUtils';
+import EditExpenseModal from './EditExpenseModal';
 
 interface HomeDetailModalProps {
   exp: Expense;
@@ -19,6 +20,7 @@ export default function HomeDetailModal({
 }: HomeDetailModalProps) {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const status = getExpenseStatus(exp);
@@ -117,11 +119,11 @@ export default function HomeDetailModal({
           {/* Footer Actions */}
           <div className="p-3 border-t border-white/10 bg-white/5 flex gap-2">
             <button
-              onClick={() => setIsDeleteOpen(true)}
+              onClick={() => setIsEditOpen(true)}
               disabled={loading}
-              className="flex-1 glass-button py-2.5 flex items-center justify-center gap-1.5 text-xs font-bold text-red-400 bg-red-500/10 border-red-500/30 hover:bg-red-500/20"
+              className="flex-1 glass-button py-2.5 flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20"
             >
-              <Trash2 className="w-4 h-4" /> Delete
+              <Pencil className="w-4 h-4" /> Edit
             </button>
             <button
               onClick={() => setIsResetOpen(true)}
@@ -129,6 +131,13 @@ export default function HomeDetailModal({
               className="flex-1 glass-button py-2.5 flex items-center justify-center gap-1.5 text-xs font-bold text-blue-400 bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/20"
             >
               <RefreshCcw className="w-4 h-4" /> Reset
+            </button>
+            <button
+              onClick={() => setIsDeleteOpen(true)}
+              disabled={loading}
+              className="flex-1 glass-button py-2.5 flex items-center justify-center gap-1.5 text-xs font-bold text-red-400 bg-red-500/10 border-red-500/30 hover:bg-red-500/20"
+            >
+              <Trash2 className="w-4 h-4" /> Delete
             </button>
           </div>
         </div>
@@ -153,6 +162,13 @@ export default function HomeDetailModal({
         onConfirm={handleReset}
         onClose={() => setIsResetOpen(false)}
       />
+
+      {isEditOpen && (
+        <EditExpenseModal 
+          exp={exp} 
+          onClose={() => setIsEditOpen(false)} 
+        />
+      )}
     </>
   );
 }
