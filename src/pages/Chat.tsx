@@ -55,14 +55,9 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-100px)] w-full overflow-hidden">
-      {/* 
-        NOTE: 
-        1. h-[calc(100dvh-100px)]: Adjust the "100px" if your bottom nav is taller or shorter. 
-        2. flex flex-col overflow-hidden: Locks the parent container to the screen.
-      */}
+    <div className="absolute inset-0 flex flex-col overflow-hidden w-full h-full">
       
-      {/* HEADER: shrink-0 prevents it from being crushed */}
+      {/* HEADER */}
       <div className="shrink-0 flex items-center justify-between mb-3 mt-2 px-1">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-extrabold tracking-tight">Space Chat</h1>
@@ -72,7 +67,7 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* MESSAGES: flex-1 takes remaining space, min-h-0 prevents it from pushing the composer off-screen */}
+      {/* MESSAGES */}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 pb-2 scroll-smooth">
         {messages.length === 0 ? (
           <div className="text-center p-10 glass-panel rounded-3xl text-gray-500 dark:text-gray-400 mt-4">
@@ -97,15 +92,16 @@ export default function Chat() {
         <div ref={bottomRef} />
       </div>
 
-      {/* COMPOSER: shrink-0 prevents it from being crushed, mt-auto pushes it to the bottom */}
-      <div className="shrink-0 mt-auto pt-2 pb-4 bg-transparent px-1">
+      {/* COMPOSER */}
+      {/* Note: Changed input to text-base to prevent iOS auto-zoom on focus */}
+      <div className="shrink-0 mt-auto pt-2 pb-4 px-1 bg-transparent">
         <form onSubmit={handleSend} className="flex gap-2 items-center glass p-2 rounded-2xl border border-white/20 dark:border-white/10 shadow-xl">
           <input 
             type="text" 
             inputMode="text"
             value={newMessage} 
             onChange={e => setNewMessage(e.target.value)} 
-            className="glass-input flex-1 border-none bg-transparent focus:ring-0 text-sm py-2 px-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 outline-none" 
+            className="glass-input flex-1 border-none bg-transparent focus:ring-0 text-base py-2 px-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 outline-none" 
             placeholder="Type a message..."
           />
           <button 
