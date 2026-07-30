@@ -38,7 +38,6 @@ const AppContent = () => {
            : 'flex-1 overflow-y-auto pb-24'
            }`}
            >
-         >
         {!activeIdentityId ? (
           <IdentityGate />
         ) : (
