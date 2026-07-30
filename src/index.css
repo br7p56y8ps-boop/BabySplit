@@ -5,6 +5,11 @@
   --color-foreground: var(--foreground);
 }
 
+html, body {
+  overscroll-behavior-y: none;
+  touch-action: manipulation;
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 ::-webkit-scrollbar {
   display: none;
