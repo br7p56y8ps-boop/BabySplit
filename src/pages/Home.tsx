@@ -4,15 +4,17 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Expense } from '../types';
 import { format } from 'date-fns';
-import { RefreshCcw } from 'lucide-react';
+import { RefreshCcw, Plus } from 'lucide-react';
 import { getExpenseStatus } from '../lib/settlementUtils';
 import HomeDetailModal from '../components/HomeDetailModal';
+import AddExpenseModal from '../components/AddExpenseModal';
 
 export default function Home() {
   const { activeSpaceId, members, user } = useAppContext();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [activeDetailExpense, setActiveDetailExpense] = useState<Expense | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   useEffect(() => {
     if (!user || !activeSpaceId) return;
@@ -55,13 +57,22 @@ export default function Home() {
             <RefreshCcw className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Add Expense Button */}
+        <button
+          onClick={() => setIsAddOpen(true)}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold text-xs shadow-md hover:scale-105 active:scale-95 transition-all shrink-0"
+        >
+          <Plus className="w-4 h-4" strokeWidth={2.5} />
+          <span>Add Expense</span>
+        </button>
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto min-h-0 pr-1 space-y-3 pb-2">
         {activeExpenses.length === 0 ? (
           <div className="text-center p-10 glass-panel rounded-3xl text-gray-500">
-            No active expenses. Click the + button to add one.
+            No active expenses. Click 'Add Expense' to create one.
           </div>
         ) : (
           activeExpenses.map(exp => {
@@ -98,12 +109,18 @@ export default function Home() {
         )}
       </div>
 
+      {/* Expense Details Modal */}
       {activeDetailExpense && (
         <HomeDetailModal
           exp={activeDetailExpense}
           onClose={() => setActiveDetailExpense(null)}
           getMemberName={getMemberName}
         />
+      )}
+
+      {/* Add Expense Modal */}
+      {isAddOpen && (
+        <AddExpenseModal onClose={() => setIsAddOpen(false)} />
       )}
     </div>
   );
