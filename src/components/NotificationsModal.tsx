@@ -1,10 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Notification } from '../types';
 import { X, Bell } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+
+// Helper to safely convert various timestamp formats (Firestore Timestamp, Number, or Date)
+const parseDate = (ts: any): Date => {
+  if (!ts) return new Date();
+  if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
+    return ts.toDate();
+  }
+  if (typeof ts === 'object' && 'seconds' in ts) {
+    return new Date(ts.seconds * 1000);
+  }
+  return new Date(ts);
+};
 
 export default function NotificationsModal({ onClose }: { onClose: () => void }) {
   const { activeSpaceId, user } = useAppContext();
@@ -12,18 +24,27 @@ export default function NotificationsModal({ onClose }: { onClose: () => void })
 
   useEffect(() => {
     if (!user || !activeSpaceId) return;
+
+    // Fetch notifications for the active space without requiring composite index
     const q = query(
       collection(db, 'notifications'), 
-      where('spaceId', '==', activeSpaceId),
-      orderBy('timestamp', 'desc'),
-      limit(10)
+      where('spaceId', '==', activeSpaceId)
     );
+
     const unsub = onSnapshot(
       q,
       (snap) => {
         const notifs: Notification[] = [];
         snap.forEach(doc => notifs.push({ id: doc.id, ...doc.data() } as Notification));
-        setNotifications(notifs);
+        
+        // Sort descending by timestamp client-side
+        notifs.sort((a, b) => {
+          const timeA = parseDate(a.timestamp).getTime();
+          const timeB = parseDate(b.timestamp).getTime();
+          return timeB - timeA;
+        });
+
+        setNotifications(notifs.slice(0, 10));
       },
       (err) => {
         console.error('Notifications listener error:', err);
@@ -51,7 +72,9 @@ export default function NotificationsModal({ onClose }: { onClose: () => void })
             notifications.map(n => (
               <div key={n.id} className="glass-button p-4 text-left block w-full hover:scale-100 cursor-default">
                 <p className="text-sm">{n.message}</p>
-                <span className="text-xs text-gray-400 mt-2 block">{formatDistanceToNow(n.timestamp, { addSuffix: true })}</span>
+                <span className="text-xs text-gray-400 mt-2 block">
+                  {formatDistanceToNow(parseDate(n.timestamp), { addSuffix: true })}
+                </span>
               </div>
             ))
           )}
