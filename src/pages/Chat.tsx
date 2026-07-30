@@ -55,11 +55,12 @@ export default function Chat() {
   };
 
   return (
-    {/* 
-      1. h-[calc(100dvh-100px)]: Adjust the "100px" if your bottom nav is taller or shorter. 
-      2. flex flex-col overflow-hidden: Locks the parent container to the screen.
-    */}
     <div className="flex flex-col h-[calc(100dvh-100px)] w-full overflow-hidden">
+      {/* 
+        NOTE: 
+        1. h-[calc(100dvh-100px)]: Adjust the "100px" if your bottom nav is taller or shorter. 
+        2. flex flex-col overflow-hidden: Locks the parent container to the screen.
+      */}
       
       {/* HEADER: shrink-0 prevents it from being crushed */}
       <div className="shrink-0 flex items-center justify-between mb-3 mt-2 px-1">
