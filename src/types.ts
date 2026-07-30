@@ -1,3 +1,5 @@
+export const PUBLIC_SPACE_ID = 'public';
+
 export interface Space {
   id: string;
   name: string;
