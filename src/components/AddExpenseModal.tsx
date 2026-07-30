@@ -149,29 +149,29 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
           {error && <div className="p-3 bg-red-500/20 text-red-500 text-sm rounded-xl">{error}</div>}
 
           <form id="add-expense-form" onSubmit={handleSave} className="space-y-4">
-            {/* ROW 1 */}
-            <div className="flex gap-3 w-full">
-              <div className="flex-1 min-w-0">
+            {/* ROW 1: Title & Date */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+              <div className="w-full min-w-0">
                 <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Expense Title</label>
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="glass-input h-[48px] !py-0 w-full min-w-0" placeholder="Dinner" required />
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="glass-input h-[48px] !py-0 w-full min-w-0 text-sm px-3" placeholder="Dinner" required />
               </div>
-              <div className="basis-[135px] shrink-0 min-w-0">
+              <div className="w-full min-w-0">
                 <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Date</label>
-                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="glass-input h-[48px] !py-0 w-full min-w-0 text-sm px-2" required />
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="glass-input h-[48px] !py-0 w-full min-w-0 text-sm px-3 appearance-none box-border" required />
               </div>
             </div>
 
-            {/* ROW 2 */}
-            <div className="flex gap-3 w-full">
-              <div className="flex-1 min-w-0">
+            {/* ROW 2: Total Amount & Currency */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+              <div className="w-full min-w-0">
                 <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Total Amount</label>
-                <div className="glass-input h-[48px] !py-0 w-full min-w-0 bg-white/5 opacity-80 cursor-not-allowed font-bold flex items-center overflow-hidden">
+                <div className="glass-input h-[48px] !py-0 w-full min-w-0 bg-white/5 opacity-80 cursor-not-allowed font-bold flex items-center px-3 overflow-hidden text-sm">
                   {totalAmount.toFixed(2)}
                 </div>
               </div>
-              <div className="basis-[135px] shrink-0 min-w-0">
+              <div className="w-full min-w-0">
                 <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Currency</label>
-                <select value={currency} onChange={e => setCurrency(e.target.value as any)} className="glass-input h-[48px] !py-0 w-full min-w-0 bg-transparent appearance-none font-bold text-center text-sm sm:text-base px-2">
+                <select value={currency} onChange={e => setCurrency(e.target.value as any)} className="glass-input h-[48px] !py-0 w-full min-w-0 bg-transparent appearance-none font-bold text-center text-sm px-3">
                   <option value="Taka" className="text-black">৳ Taka</option>
                   <option value="INR" className="text-black">₹ INR</option>
                   <option value="USD" className="text-black">$ USD</option>
