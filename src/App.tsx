@@ -32,10 +32,10 @@ const AppContent = () => {
     <div className="h-screen h-[100dvh] flex flex-col overflow-hidden">
       <TopBar />
       <main 
-        className={`w-full max-w-3xl mx-auto px-4 pt-3 pb-24 ${
+        className={`w-full max-w-3xl mx-auto px-4 pt-3 ${
           isChat 
-            ? 'flex-1 min-h-0 flex flex-col overflow-hidden' 
-            : 'flex-1 overflow-y-auto'
+            ? 'flex-1 min-h-0 flex flex-col overflow-hidden pb-[4.25rem]' 
+            : 'flex-1 overflow-y-auto pb-24'
         }`}
       >
         {!activeIdentityId ? (
