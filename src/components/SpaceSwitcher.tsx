@@ -38,7 +38,7 @@ export default function SpaceSwitcher({ onClose }: { onClose: () => void }) {
     
     setLoading(true);
     try {
-      const newSpaceId = await createPrivateSpace(createName, createPin, finalMemberNames, user.uid);
+      const newSpaceId = await createPrivateSpace(createName, createPin, finalMemberNames, user.uid, activeMember?.name);
       setActiveSpaceId(newSpaceId);
       onClose();
     } catch (err: any) {
