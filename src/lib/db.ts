@@ -59,16 +59,19 @@ export const initializePublicSpace = async (uid: string) => {
   }
 };
 
-export const createPrivateSpace = async (name: string, joinPin: string, memberNames: string[], uid: string) => {
+export const createPrivateSpace = async (name: string, joinPin: string, memberNames: string[], uid: string, creatorMemberName?: string) => {
   const batch = writeBatch(db);
   const spaceRef = doc(collection(db, 'spaces'));
   const spaceId = spaceRef.id;
+
+  const firstMemberName = creatorMemberName || memberNames[0] || '';
 
   batch.set(spaceRef, {
     name,
     type: 'private',
     joinPin,
     creatorUid: uid,
+    creatorMemberName: firstMemberName,
     createdAt: Date.now(),
   });
 
