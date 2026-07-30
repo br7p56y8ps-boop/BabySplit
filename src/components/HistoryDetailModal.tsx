@@ -134,26 +134,10 @@ export default function HistoryDetailModal({
                 </div>
               )}
             </div>
-
-            {/* Granular Settlement Records */}
-            {exp.settlements && exp.settlements.length > 0 && (
-              <div className="p-3.5 glass rounded-2xl space-y-2">
-                <h3 className="text-[11px] font-bold uppercase tracking-wider opacity-70">Detailed Payment Logs</h3>
-                <div className="space-y-1.5">
-                  {exp.settlements.map((s, idx) => (
-                    <div key={s.id || idx} className="p-2 rounded-xl bg-white/5 border border-white/10 text-[11px] flex justify-between items-center">
-                      <div>
-                        <span className="font-bold text-red-400">{getMemberName(s.debtorId)}</span>
-                        <span className="opacity-60 mx-1">➔</span>
-                        <span className="font-bold text-green-400">{getMemberName(s.creditorId)}</span>
-                      </div>
-                      <div className="font-bold text-green-400">
-                        {s.currency || exp.currency} {Number(s.amount).toFixed(2)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            </div>
+              ))}
+           </div>
+         </div>
             )}
           </div>
 
