@@ -56,7 +56,7 @@ export default function Chat() {
 
   return (
     <div className="flex flex-col h-full min-h-0 w-full overflow-hidden">
-      {/* SECTION 1: Fixed Header (Below App Bar) */}
+      {/* SECTION 1: Fixed Header */}
       <div className="flex-none shrink-0 flex items-center justify-between mb-3 pb-1">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-extrabold tracking-tight">Space Chat</h1>
@@ -66,10 +66,10 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* SECTION 2: Scrollable Messages Container */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 pb-2">
+      {/* SECTION 2: Conversation Window with Thin Boundary */}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 p-3 rounded-2xl border border-black/10 dark:border-white/15 bg-black/[0.02] dark:bg-white/[0.03] backdrop-blur-sm shadow-inner">
         {messages.length === 0 ? (
-          <div className="text-center p-10 glass-panel rounded-3xl text-gray-500 dark:text-gray-400">
+          <div className="text-center p-10 glass-panel rounded-2xl text-gray-500 dark:text-gray-400">
             No messages yet. Send a message to start chatting!
           </div>
         ) : (
@@ -91,8 +91,8 @@ export default function Chat() {
         <div ref={bottomRef} />
       </div>
 
-      {/* SECTION 3: Fixed Composer Container (Above Bottom Navigation Bar) */}
-      <div className="flex-none shrink-0 pt-2 pb-1 bg-transparent">
+      {/* SECTION 3: Fixed Composer Container (Positioned right above navbar) */}
+      <div className="flex-none shrink-0 pt-2 pb-0 bg-transparent">
         <form onSubmit={handleSend} className="flex gap-2 items-center glass p-2 rounded-2xl border border-white/20 dark:border-white/10 shadow-xl">
           <input 
             type="text" 
