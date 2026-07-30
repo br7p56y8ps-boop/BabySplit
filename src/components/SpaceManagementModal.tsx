@@ -3,7 +3,8 @@ import { useAppContext } from '../contexts/AppContext';
 import { doc, deleteDoc, addDoc, collection, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { PRESET_MEMBERS } from '../lib/db';
-import { X, UserPlus, UserMinus, ShieldCheck, Edit3, Check } from 'lucide-react';
+import { isMemberCreator } from '../lib/spaceUtils';
+import { X, UserPlus, UserMinus, ShieldCheck, Edit3, Check, Shield } from 'lucide-react';
 import { Member } from '../types';
 
 interface SpaceManagementModalProps {
@@ -131,6 +132,7 @@ export default function SpaceManagementModal({ onClose }: SpaceManagementModalPr
               {members.map(m => {
                 const isPreset = isPresetMember(m);
                 const isEditing = editingMemberId === m.id;
+                const isCreatorMember = isMemberCreator(m, activeSpace, members);
 
                 return (
                   <div 
@@ -157,9 +159,15 @@ export default function SpaceManagementModal({ onClose }: SpaceManagementModalPr
                     ) : (
                       <>
                         <div>
-                          <div className="font-bold text-xs truncate">{m.name}</div>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {isPreset ? (
+                          <div className="font-bold text-xs truncate flex items-center justify-between gap-1">
+                            <span>{m.name}</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {isCreatorMember && !isPublic ? (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30 flex items-center gap-0.5">
+                                🛡 Creator
+                              </span>
+                            ) : isPreset ? (
                               <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-extrabold border border-purple-500/30">
                                 Preset
                               </span>
