@@ -55,7 +55,7 @@ export default function Chat() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 w-full overflow-hidden">
       {/* SECTION 1: Fixed Header (Below App Bar) */}
       <div className="flex-none shrink-0 flex items-center justify-between mb-3 pb-1">
         <div className="flex items-center gap-2">
