@@ -473,7 +473,8 @@ export async function exportSpaceDataToPDF(
     doc.text('1. Net Balance Calculation: Each member\'s total payments are balanced against their total assigned expense shares. Think of it as UPI diet mode — same debts settled, way fewer transfers.', 18, textY);
     textY += 5;
     
-    doc.text('2. Debt Minimization: Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions. No middlemen, no chains, no 'wait who owes who again' — just the shortest route to zero balance.', 18, textY);
+    // FIXED: Changed this string to use double quotes to prevent unescaped single quotes from breaking the build
+    doc.text("2. Debt Minimization: Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions. No middlemen, no chains, no 'wait who owes who again' — just the shortest route to zero balance.", 18, textY);
     textY += 5;
 
     doc.text('3. For Instance- ', 18, textY);
