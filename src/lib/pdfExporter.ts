@@ -441,24 +441,78 @@ export async function exportSpaceDataToPDF(
       ? (finalTransferTarget.toName || getMemberName(finalTransferTarget.to)) 
       : 'Receiver';
 
-    // Calculate Box Height dynamically based on wrapped text lengths
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    // Settings for the custom ordered list
+    const pointLineHeight = 3.5;
+    const pointGap = 4;
+    const pointIndent = 5; // Creates the uniform hanging indent for multi-line strings
+    const textMaxWidth = pageWidth - 36; // Full width minus page margins
+
+    const points = [
+      {
+        title: '1. Net Balance Calculation: ',
+        desc: "Each member's total payments are balanced against their total assigned expense shares. Think of it as UPI diet mode — same debts settled, way fewer transfers."
+      },
+      {
+        title: '2. Debt Minimization: ',
+        desc: "Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions. No middlemen, no chains, no \"wait who owes who again\" — just the shortest route to zero balance."
+      },
+      {
+        title: '3. For Instance - ',
+        desc: `From the above Expenses, taking as an example of '${sampleMemberName}' ; the net transfer was simplified as-`
+      }
+    ];
+
+    // Helper to calculate wrapping and render text uniformly (inline bold title + normal description + indent)
+    const processPoint = (point: {title: string, desc: string}, startY: number, draw: boolean = false) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      if (draw) doc.setTextColor(107, 114, 128); // Standard Grey
+      
+      const titleWidth = doc.getTextWidth(point.title);
+      if (draw) doc.text(point.title, 18, startY);
+      
+      doc.setFont('helvetica', 'normal');
+      const words = point.desc.split(' ');
+      let currentLine = '';
+      let currentX = 18 + titleWidth; // Start description exactly after title
+      let currentY = startY;
+      let lineLimit = textMaxWidth - titleWidth; // Limit for first line
+
+      for (let word of words) {
+        const testLine = currentLine + (currentLine ? ' ' : '') + word;
+        const testWidth = doc.getTextWidth(testLine);
+        
+        if (testWidth > lineLimit) {
+          if (draw) doc.text(currentLine, currentX, currentY);
+          currentY += pointLineHeight; // Move to next line
+          currentX = 18 + pointIndent; // Apply hanging indent!
+          currentLine = word;
+          lineLimit = textMaxWidth - pointIndent; // Limit for subsequent lines
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) {
+        if (draw) doc.text(currentLine, currentX, currentY);
+      }
+      return currentY; // Return Y position of the last line drawn
+    };
+
+    // Calculate Box Height dynamically based on exact wrapped text rendering heights
+    let mockY = currentY + 7;
+    mockY += pointLineHeight + 5; // Move past Main Title position
+    for (let i = 0; i < points.length; i++) {
+      const lastLineY = processPoint(points[i], mockY, false);
+      mockY = lastLineY + pointLineHeight + pointGap; // Advance to next point
+    }
     
-    const textMaxWidth = pageWidth - 36; // Keep 18px margin on both sides
-    const p1 = doc.splitTextToSize('1. Net Balance Calculation: Each member\'s total payments are balanced against their total assigned expense shares. Think of it as UPI diet mode — same debts settled, way fewer transfers.', textMaxWidth);
-    const p2 = doc.splitTextToSize("2. Debt Minimization: Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions. No middlemen, no chains, no 'wait who owes who again' — just the shortest route to zero balance.", textMaxWidth);
-    const p3 = doc.splitTextToSize(`From the above Expenses, taking as an example of '${sampleMemberName}' ; the net transfer was simplified as-`, textMaxWidth);
-
-    const lineHeight = 3.5;
-    const topTextGap = 7 + 5 + (p1.length * lineHeight + 1.5) + (p2.length * lineHeight + 1.5) + 5 + (p3.length * lineHeight + 0.5);
-
+    const topBoxPortion = mockY - currentY;
     const rowEstimate = 7.5;
     const tableEstHeight = tableBodyRaw.length > 0 ? (tableBodyRaw.length + 1) * rowEstimate + 6 : 0;
     const bottomTextGap = tableBodyRaw.length > 0 ? 32 : 0;
     const paddingBottom = 6;
     
-    const containerBoxHeight = topTextGap + tableEstHeight + bottomTextGap + paddingBottom;
+    const containerBoxHeight = topBoxPortion + tableEstHeight + bottomTextGap + paddingBottom;
 
     if (currentY + containerBoxHeight > pageHeight - 15) {
       doc.addPage();
@@ -472,25 +526,25 @@ export async function exportSpaceDataToPDF(
 
     let textY = currentY + 7;
 
-    // Apply Uniform Text Style for top of container
-    doc.setFont('helvetica', 'normal');
+    // Draw Main Title (Bold, Italic, Underlined, Dark Blue)
+    doc.setFont('helvetica', 'bolditalic');
     doc.setFontSize(8);
-    doc.setTextColor(107, 114, 128); // Standard Grey
-
-    doc.text('How Net Minimum Transfers are Calculated:', 18, textY);
-    textY += 5;
+    doc.setTextColor(26, 54, 93); // Dark Blue
+    const mainTitle = 'How Net Minimum Transfers are Calculated:';
+    doc.text(mainTitle, 18, textY);
     
-    doc.text(p1, 18, textY);
-    textY += p1.length * lineHeight + 1.5;
+    const mtWidth = doc.getTextWidth(mainTitle);
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(26, 54, 93);
+    doc.line(18, textY + 1.2, 18 + mtWidth, textY + 1.2); // Manual Underline
     
-    doc.text(p2, 18, textY);
-    textY += p2.length * lineHeight + 1.5;
+    textY += pointLineHeight + 5;
 
-    doc.text('3. For Instance- ', 18, textY);
-    textY += 5;
-
-    doc.text(p3, 18, textY);
-    textY += p3.length * lineHeight + 0.5; 
+    // Actually Draw Points
+    for (let i = 0; i < points.length; i++) {
+      const lastLineY = processPoint(points[i], textY, true);
+      textY = lastLineY + pointLineHeight + pointGap;
+    }
 
     // Add Inner Table with custom colored cell rendering
     if (tableBodyRaw.length > 0) {
