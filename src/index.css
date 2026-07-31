@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Force Tailwind v4 dark mode to use class selector instead of OS system theme */
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -35,7 +38,7 @@ html, body {
   body {
     background-color: var(--background);
     color: var(--foreground);
-    /* Soft mesh gradient background for glassmorphism to look good */
+    /* Soft mesh gradient background for light mode */
     background-image: 
       radial-gradient(at 0% 0%, hsla(253,16%,7%,0) 0, transparent 50%), 
       radial-gradient(at 50% 0%, hsla(225,39%,30%,0.1) 0, transparent 50%), 
@@ -43,7 +46,9 @@ html, body {
     background-attachment: fixed;
     min-height: 100vh;
   }
-  .dark body {
+  .dark body,
+  html.dark body {
+    /* Soft mesh gradient background for dark mode */
     background-image: 
       radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
       radial-gradient(at 50% 0%, hsla(225,39%,30%,0.2) 0, transparent 50%), 
