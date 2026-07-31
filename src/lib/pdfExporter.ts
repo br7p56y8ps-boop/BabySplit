@@ -58,7 +58,7 @@ export async function exportSpaceDataToPDF(
     try {
       const iconImg = await loadImage('/icon-512.png');
       if (iconImg) {
-        const iconSize = 26; // Updated size: 26
+        const iconSize = 26;
         const iconX = (pageWidth - iconSize) / 2;
         
         doc.addImage(iconImg, 'PNG', iconX, currentY, iconSize, iconSize);
@@ -66,13 +66,13 @@ export async function exportSpaceDataToPDF(
         doc.setDrawColor(0, 0, 0);
         doc.rect(iconX, currentY, iconSize, iconSize); // Black border
         
-        currentY += iconSize + 12; // 3 line breaks (~12pt) after icon
+        currentY += iconSize + 12; // 3 line breaks spacing after icon
       }
     } catch (e) {
       // Fallback gracefully if image path is not found
     }
 
-    // 2. Main Title: BabySplit
+    // 2. Main Title: BabySplit (Font Size 26)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(26);
     doc.setTextColor(26, 54, 93); // Navy Blue
@@ -87,21 +87,32 @@ export async function exportSpaceDataToPDF(
     const splitDesc = doc.splitTextToSize(descText, pageWidth - 40);
     doc.text(splitDesc, pageWidth / 2, currentY, { align: 'center' });
     
-    currentY += splitDesc.length * 4.5 + 20; // 5 line breaks (~20pt) after description
+    currentY += splitDesc.length * 4.5 + 20; // 5 line breaks spacing after description
 
-    // 4. Report Tag
+    // 4. Report Tag (Increased font size 20, with light Navy Blue / Yellow Container)
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.setTextColor(0, 0, 0);
-    doc.text('Report', pageWidth / 2, currentY, { align: 'center' });
-    const reportTextWidth = doc.getTextWidth('Report');
-    doc.setLineWidth(0.5);
-    doc.setDrawColor(0, 0, 0);
-    doc.line((pageWidth - reportTextWidth) / 2, currentY + 1, (pageWidth + reportTextWidth) / 2, currentY + 1);
+    doc.setFontSize(20);
+    const reportText = 'Report';
+    const reportWidth = doc.getTextWidth(reportText);
+    const boxPaddingX = 8;
+    const boxHeight = 10;
+    const boxX = (pageWidth - reportWidth) / 2 - boxPaddingX;
+    const boxY = currentY - 7.5;
+    const boxW = reportWidth + (boxPaddingX * 2);
 
-    currentY += 20; // 5 line breaks (~20pt) after Report tag
+    // Light Yellow Fill with Soft Navy Border
+    doc.setFillColor(254, 249, 195); // Soft Light Yellow
+    doc.setDrawColor(26, 54, 93);    // Navy Blue Border
+    doc.setLineWidth(0.6);
+    doc.roundedRect(boxX, boxY, boxW, boxHeight + 2, 2, 2, 'FD');
 
-    // Helper for Section Headings (+3 line breaks extra space after each heading)
+    // Navy Blue Report Text
+    doc.setTextColor(26, 54, 93);
+    doc.text(reportText, pageWidth / 2, currentY, { align: 'center' });
+
+    currentY += 22; // 5 line breaks spacing after Report tag
+
+    // Helper for Section Headings
     const renderHeading = (title: string, xPos: number, yPos: number) => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
@@ -117,7 +128,7 @@ export async function exportSpaceDataToPDF(
     renderHeading('Space Information', 14, currentY);
     renderHeading('Space Members', 108, currentY);
 
-    currentY += 16; // 4pt base + 12pt (+3 line breaks) extra space after heading
+    currentY += 5; // Tight gap between heading and table content
 
     const memberNames = members.map(m => m.name);
     const membersGridBody: string[][] = [];
@@ -153,7 +164,8 @@ export async function exportSpaceDataToPDF(
       styles: { fontSize: 8.5, cellPadding: 2.5, halign: 'center' },
     });
 
-    currentY = Math.max((doc as any).lastAutoTable.finalY, currentY + 32) + 10;
+    // Space after section content before next heading
+    currentY = Math.max((doc as any).lastAutoTable.finalY, currentY + 32) + 18;
 
     const filteredExpenses = expenses.filter(exp => {
       const status = getExpenseStatus(exp);
@@ -176,7 +188,7 @@ export async function exportSpaceDataToPDF(
         : 'Expense Overview';
 
     renderHeading(overviewTitle, 14, currentY);
-    currentY += 16; // +3 line breaks extra space
+    currentY += 5; // Tight gap between heading and table content
 
     const expensesBody = filteredExpenses.map(exp => {
       const dateStr = exp.date ? format(new Date(exp.date), 'dd/MM/yyyy') : '-';
@@ -266,7 +278,8 @@ export async function exportSpaceDataToPDF(
       },
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 10;
+    // Space after section content before next heading
+    currentY = (doc as any).lastAutoTable.finalY + 18;
 
     // 7. Itemized Expense Payment Flow
     if (currentY > 210) {
@@ -275,7 +288,7 @@ export async function exportSpaceDataToPDF(
     }
 
     renderHeading('Itemized Expense Payment Flow', 14, currentY);
-    currentY += 16; // +3 line breaks extra space
+    currentY += 5; // Tight gap between heading and table content
 
     const itemizedTxRows: any[] = [];
     filteredExpenses.forEach(exp => {
@@ -339,7 +352,8 @@ export async function exportSpaceDataToPDF(
       },
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 10;
+    // Space after section content before next heading
+    currentY = (doc as any).lastAutoTable.finalY + 18;
 
     // 8. Net Minimum Transfer Flow
     if (currentY > 190) {
@@ -348,7 +362,7 @@ export async function exportSpaceDataToPDF(
     }
 
     renderHeading('Net Minimum Transfer Flow', 14, currentY);
-    currentY += 16; // +3 line breaks extra space
+    currentY += 5; // Tight gap between heading and table content
 
     const netTransfers = calculateNetTransfers 
       ? calculateNetTransfers(filteredExpenses, members) 
@@ -386,7 +400,8 @@ export async function exportSpaceDataToPDF(
       });
     }
 
-    currentY = (doc as any).lastAutoTable.finalY + 8;
+    // Space after section content before next block
+    currentY = (doc as any).lastAutoTable.finalY + 16;
 
     // --- 9. UNIFORM TABLE & SPACED EXAMPLE AUDIT ---
     const sampleMemberId = netTransfers.length > 0 ? netTransfers[0].from : members[0]?.id;
@@ -433,9 +448,9 @@ export async function exportSpaceDataToPDF(
     const bottomTextGap = tableBodyRaw.length > 0 ? 32 : 0;
     const paddingBottom = 6;
     
-    const boxHeight = topTextGap + tableEstHeight + bottomTextGap + paddingBottom;
+    const containerBoxHeight = topTextGap + tableEstHeight + bottomTextGap + paddingBottom;
 
-    if (currentY + boxHeight > pageHeight - 15) {
+    if (currentY + containerBoxHeight > pageHeight - 15) {
       doc.addPage();
       currentY = 15;
     }
@@ -443,7 +458,7 @@ export async function exportSpaceDataToPDF(
     // Draw Grey Container background
     doc.setFillColor(243, 244, 246);
     doc.setDrawColor(209, 213, 219);
-    doc.roundedRect(14, currentY, pageWidth - 28, boxHeight, 2, 2, 'FD');
+    doc.roundedRect(14, currentY, pageWidth - 28, containerBoxHeight, 2, 2, 'FD');
 
     let textY = currentY + 7;
 
@@ -469,7 +484,6 @@ export async function exportSpaceDataToPDF(
 
     // Add Inner Table with custom colored cell rendering
     if (tableBodyRaw.length > 0) {
-      // Map body data as placeholder empty strings for Paid and Net Amount columns
       const tableBodyForAutoTable = tableBodyRaw.map(r => [
         r.title,
         '', 
@@ -599,11 +613,9 @@ export async function exportSpaceDataToPDF(
       const actionTitle = 'Final Action:';
       doc.text(actionTitle, titleX, textY);
       
-      // Spacing after colon before badge starts
       const actionTitleWidth = doc.getTextWidth(actionTitle) + 4; 
       const badgeX = titleX + actionTitleWidth;
 
-      // Construct message parts
       let part1 = '';
       let part2Amount = '';
       let part3 = '';
@@ -626,20 +638,19 @@ export async function exportSpaceDataToPDF(
       const w3 = doc.getTextWidth(part3);
       const totalMsgWidth = w1 + w2 + w3;
 
-      // Container styling
-      const bgFill = netBalance >= 0 ? [220, 252, 231] : [254, 226, 226]; // Soft Green or Soft Red
+      const bgFill = netBalance >= 0 ? [220, 252, 231] : [254, 226, 226]; 
       const borderColor = netBalance >= 0 ? [187, 247, 208] : [254, 202, 202];
       const amountColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38];
 
-      const boxPaddingX = 2.5;
+      const pPaddingX = 2.5;
       doc.setFillColor(bgFill[0], bgFill[1], bgFill[2]);
       doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
       
       // Draw highlighted pill container
       doc.roundedRect(
-        badgeX - boxPaddingX, 
+        badgeX - pPaddingX, 
         textY - 3.5, 
-        totalMsgWidth + (boxPaddingX * 2), 
+        totalMsgWidth + (pPaddingX * 2), 
         5.2, 
         1, 
         1, 
@@ -664,7 +675,7 @@ export async function exportSpaceDataToPDF(
       doc.text(part3, curX, textY);
     }
 
-    currentY = currentY + boxHeight + 12;
+    currentY = currentY + containerBoxHeight + 12;
 
     // End of Report Divider & Text
     doc.setLineWidth(0.5);
