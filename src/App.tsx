@@ -36,7 +36,7 @@ const AppContent = () => {
         <main 
            className={`w-full max-w-3xl mx-auto px-4 pt-3 ${
            isChat 
-           ? 'flex-1 min-h-0 flex flex-col overflow-hidden pb-28' 
+           ? 'flex-1 min-h-0 flex flex-col overflow-hidden pb-22' 
            : 'flex-1 overflow-y-auto pb-24'
            }`}
            >
