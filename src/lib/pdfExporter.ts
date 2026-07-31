@@ -1,7 +1,12 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Space, Member, Expense } from '../types';
-import { calculateExpenseTransactions, getExpenseStatus, calculateNetTransfers } from '../lib/settlementUtils';
+import { 
+  calculateExpenseTransactions, 
+  getExpenseStatus, 
+  calculateNetTransfers, 
+  isTransactionSettled 
+} from '../lib/settlementUtils';
 import { format } from 'date-fns';
 
 function cleanCurrencySymbol(symbol: string): string {
@@ -95,7 +100,7 @@ export function exportSpaceDataToPDF(
     return true;
   });
 
-  // 3. Clean Expense Report (No squished transaction column)
+  // 3. Clean Expense Report (Overview)
   if (currentY > 220) {
     doc.addPage();
     currentY = 15;
@@ -188,6 +193,23 @@ export function exportSpaceDataToPDF(
       6: { cellWidth: 18 }, // Status
       7: { cellWidth: 21 }, // Settled Info
     },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.row.raw) {
+        const statusVal = data.row.raw[6]; // Expense status column
+        if (data.column.index === 6) {
+          if (statusVal === 'Fully Settled') {
+            data.cell.styles.textColor = [22, 163, 74]; // Green
+            data.cell.styles.fontStyle = 'bold';
+          } else if (statusVal === 'Unsettled') {
+            data.cell.styles.textColor = [220, 38, 38]; // Red
+            data.cell.styles.fontStyle = 'bold';
+          } else if (statusVal === 'Partially Settled') {
+            data.cell.styles.textColor = [217, 119, 6]; // Amber
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      }
+    },
   });
 
   currentY = (doc as any).lastAutoTable.finalY + 10;
@@ -208,18 +230,26 @@ export function exportSpaceDataToPDF(
   filteredExpenses.forEach(exp => {
     const txs = calculateExpenseTransactions(exp);
     const currencyStr = cleanCurrencySymbol(exp.currency);
-    const status = getExpenseStatus(exp);
 
     if (txs.length === 0) {
-      itemizedTxRows.push([exp.title, '—', '—', 'No transfer required', status]);
+      const expStatus = getExpenseStatus(exp);
+      itemizedTxRows.push([
+        exp.title, 
+        '—', 
+        '—', 
+        'No transfer required', 
+        expStatus === 'Fully Settled' ? 'Settled' : 'Unsettled'
+      ]);
     } else {
       txs.forEach(tx => {
+        // Individual flow status check!
+        const settled = isTransactionSettled(exp, tx);
         itemizedTxRows.push([
           exp.title,
           getMemberName(tx.from),
           getMemberName(tx.to),
           `${currencyStr} ${tx.amount.toFixed(2)}`,
-          status,
+          settled ? 'Settled' : 'Unsettled',
         ]);
       });
     }
@@ -227,11 +257,26 @@ export function exportSpaceDataToPDF(
 
   autoTable(doc, {
     startY: currentY,
-    head: [['Expense Title', 'Payer (From)', 'Receiver (To)', 'Amount', 'Expense Status']],
+    head: [['Expense Title', 'Payer (From)', 'Receiver (To)', 'Amount', 'Flow Status']],
     body: itemizedTxRows.length > 0 ? itemizedTxRows : [['No transaction flows', '-', '-', '-', '-']],
     theme: 'grid',
     headStyles: { fillColor: [99, 102, 241], textColor: 255, fontStyle: 'bold' },
     styles: { fontSize: 8.5, cellPadding: 2.5 },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.row.raw) {
+        const flowStatus = data.row.raw[4]; // 5th column is Flow Status
+        // Color amount (col 3) and status (col 4)
+        if (data.column.index === 3 || data.column.index === 4) {
+          if (flowStatus === 'Settled') {
+            data.cell.styles.textColor = [22, 163, 74]; // Green for Settled
+            data.cell.styles.fontStyle = 'bold';
+          } else if (flowStatus === 'Unsettled') {
+            data.cell.styles.textColor = [220, 38, 38]; // Red for Unsettled
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      }
+    },
   });
 
   currentY = (doc as any).lastAutoTable.finalY + 10;
@@ -248,7 +293,6 @@ export function exportSpaceDataToPDF(
   doc.text('5. Net Minimum Transfer Flow (Final Space Settlement)', 14, currentY);
   currentY += 4;
 
-  // Calculate overall net transfers for active space expenses
   const netTransfers = calculateNetTransfers 
     ? calculateNetTransfers(filteredExpenses, members) 
     : [];
@@ -259,7 +303,7 @@ export function exportSpaceDataToPDF(
       head: ['Settlement Status'],
       body: [['All member balances are fully settled! No transfers required.']],
       theme: 'plain',
-      styles: { fontSize: 9, fontStyle: 'bold', textColor: [16, 185, 129] },
+      styles: { fontSize: 9, fontStyle: 'bold', textColor: [22, 163, 74] },
     });
   } else {
     const netRows = netTransfers.map((t: any) => [
@@ -275,6 +319,12 @@ export function exportSpaceDataToPDF(
       theme: 'striped',
       headStyles: { fillColor: [234, 88, 12], textColor: 255, fontStyle: 'bold' },
       styles: { fontSize: 9, cellPadding: 3 },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 2) {
+          data.cell.styles.textColor = [220, 38, 38]; // Red for pending transfer amount
+          data.cell.styles.fontStyle = 'bold';
+        }
+      },
     });
   }
 
