@@ -3,12 +3,14 @@ import { useAppContext } from '../contexts/AppContext';
 import { Member } from '../types';
 
 export default function IdentityGate() {
-  const { members, setActiveIdentityId } = useAppContext();
+  // Added spaces and activeSpaceId to the context pull
+  const { members, setActiveIdentityId, spaces, activeSpaceId } = useAppContext();
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
 
   const permanentMembers = members.filter(m => !m.isTemporary);
+  const activeSpace = spaces.find(s => s.id === activeSpaceId);
 
   const handleSelect = (member: Member) => {
     setSelectedMember(member);
@@ -18,8 +20,19 @@ export default function IdentityGate() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedMember?.pin === pin) {
-      setActiveIdentityId(selectedMember.id);
+    
+    // Determine if the entered PIN is valid based on Space Type
+    let isValid = false;
+    if (activeSpace?.type === 'private') {
+      // MASTER PADLOCK: Check against the Space's joinPin
+      isValid = activeSpace.joinPin === pin;
+    } else {
+      // PERSONAL PADLOCK: Check against the Member's personal pin
+      isValid = selectedMember?.pin === pin;
+    }
+
+    if (isValid) {
+      setActiveIdentityId(selectedMember!.id);
     } else {
       setError('Incorrect PIN');
     }
@@ -29,7 +42,9 @@ export default function IdentityGate() {
     return (
       <div className="glass-panel p-6 rounded-3xl max-w-sm mx-auto mt-20 text-center animate-in fade-in zoom-in duration-300">
         <h2 className="text-2xl font-bold mb-2">Welcome, {selectedMember.name}</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Enter your PIN to access the space.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+          {activeSpace?.type === 'private' ? 'Enter the Space PIN to access this space.' : 'Enter your personal PIN to continue.'}
+        </p>
         
         <form onSubmit={handleLogin} className="space-y-4">
           <input
