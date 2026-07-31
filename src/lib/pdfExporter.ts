@@ -315,7 +315,6 @@ export async function exportSpaceDataToPDF(
     headStyles: { fillColor: [99, 102, 241], textColor: 255, fontStyle: 'bold' },
     styles: { fontSize: 8.5, cellPadding: 2.5 },
     didParseCell: (data) => {
-      // FIX: Lock styling strictly to column indexes 3 (Amount) and 4 (Status)
       if (data.section === 'body') {
         if (data.column.index === 3 || data.column.index === 4) {
           const rawRow = data.row.raw as any[];
@@ -323,9 +322,9 @@ export async function exportSpaceDataToPDF(
           
           data.cell.styles.fontStyle = 'bold';
           if (flowStatusCell === 'Settled') {
-            data.cell.styles.textColor = [22, 163, 74]; // Green
+            data.cell.styles.textColor = [22, 163, 74];
           } else {
-            data.cell.styles.textColor = [220, 38, 38]; // Red
+            data.cell.styles.textColor = [220, 38, 38];
           }
         }
       }
@@ -381,15 +380,16 @@ export async function exportSpaceDataToPDF(
 
   currentY = (doc as any).lastAutoTable.finalY + 8;
 
-  // --- BUILD SPACED & NEAT MEMBER AUDIT EXAMPLE ---
+  // --- 9. UNIFORM TABLE & SPACED EXAMPLE AUDIT ---
   const sampleMemberId = netTransfers.length > 0 ? netTransfers[0].from : members[0]?.id;
   const sampleMemberName = getMemberName(sampleMemberId);
 
   let totalPaid = 0;
   let totalOwed = 0;
-  const breakdownLines: string[] = [];
+  const tableBody: any[][] = [];
   const primaryCurrency = getCurrencySymbol(filteredExpenses[0]?.currency || '');
 
+  // Build Table Rows
   filteredExpenses.forEach(exp => {
     const currSym = getCurrencySymbol(exp.currency);
     const paid = exp.paidBy?.[sampleMemberId] || 0;
@@ -403,10 +403,12 @@ export async function exportSpaceDataToPDF(
       const netExp = paid - share;
       const sign = netExp >= 0 ? '+' : '';
       
-      // Clean ASCII characters only (- instead of • or −)
-      breakdownLines.push(
-        `- ${exp.title} - Paid: ${currSym} ${paid.toFixed(2)}   |   Should Pay: ${currSym} ${share.toFixed(2)}   |   Net: ${sign}${currSym} ${netExp.toFixed(2)}`
-      );
+      tableBody.push([
+        exp.title,
+        `${currSym} ${paid.toFixed(2)}`,
+        `${currSym} ${share.toFixed(2)}`,
+        `${sign}${currSym} ${netExp.toFixed(2)}`
+      ]);
     }
   });
 
@@ -416,88 +418,116 @@ export async function exportSpaceDataToPDF(
     ? (finalTransferTarget.toName || getMemberName(finalTransferTarget.to)) 
     : 'Receiver';
 
-  const lineSpacing = 5.5; 
-  const baseBoxHeight = 28;
-  const exampleHeaderHeight = breakdownLines.length > 0 ? 10 : 0;
-  const exampleLinesHeight = breakdownLines.length * lineSpacing;
-  const exampleSummaryHeight = breakdownLines.length > 0 ? 16 : 0;
+  // Calculate Box Height beforehand to draw properly
+  const topTextGap = 32; 
+  const rowEstimate = 7.5;
+  const tableEstHeight = tableBody.length > 0 ? (tableBody.length + 1) * rowEstimate + 6 : 0;
+  const bottomTextGap = tableBody.length > 0 ? 26 : 0;
+  const paddingBottom = 6;
   
-  const boxHeight = baseBoxHeight + exampleHeaderHeight + exampleLinesHeight + exampleSummaryHeight;
+  const boxHeight = topTextGap + tableEstHeight + bottomTextGap + paddingBottom;
 
-  if (currentY + boxHeight > pageHeight - 20) {
+  if (currentY + boxHeight > pageHeight - 15) {
     doc.addPage();
     currentY = 15;
   }
 
+  // Draw Grey Container background
   doc.setFillColor(243, 244, 246);
   doc.setDrawColor(209, 213, 219);
   doc.roundedRect(14, currentY, pageWidth - 28, boxHeight, 2, 2, 'FD');
 
   let textY = currentY + 7;
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(55, 65, 81);
-  doc.text('How Net Minimum Transfers are Calculated:', 18, textY);
-
-  textY += 5.5;
+  // Apply Uniform Text Style for entire container top
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(107, 114, 128);
-  doc.text('1. Net Balance Calculation: Each member\'s total payments are balanced against their total assigned expense shares.', 18, textY);
-  
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128); // Standard Grey
+
+  doc.text('How Net Minimum Transfers are Calculated:', 18, textY);
   textY += 5;
+  
+  doc.text('1. Net Balance Calculation: Each member\'s total payments are balanced against their total assigned expense shares.', 18, textY);
+  textY += 5;
+  
   doc.text('2. Debt Minimization: Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions.', 18, textY);
+  textY += 5;
 
-  if (breakdownLines.length > 0) {
-    textY += 7;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(30, 58, 138);
-    doc.text(`3. Detailed Calculation Example for ${sampleMemberName}:`, 18, textY);
+  doc.text('3. Example', 18, textY);
+  textY += 5;
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.2);
-    doc.setTextColor(75, 85, 99);
+  doc.text(`From Above Expenses, taking as an example of '${sampleMemberName}' ; the calculation was made as-`, 18, textY);
+  textY += 4; 
 
-    breakdownLines.forEach(line => {
-      textY += lineSpacing;
-      doc.text(line, 22, textY);
+  // Add Inner Table 
+  if (tableBody.length > 0) {
+    autoTable(doc, {
+      startY: textY,
+      margin: { left: 18, right: 18 },
+      tableWidth: pageWidth - 36,
+      head: [['Title', 'Paid', 'Should Pay/Receive', 'Net Amount']],
+      body: tableBody,
+      theme: 'grid',
+      styles: { 
+        font: 'helvetica',
+        fontSize: 8, 
+        cellPadding: 2, 
+        textColor: [107, 114, 128], // Matching Grey
+        lineColor: [209, 213, 219],
+        lineWidth: 0.1
+      },
+      headStyles: { 
+        fillColor: [229, 231, 235], // Subtle grey background for table header
+        textColor: [107, 114, 128], 
+        fontStyle: 'normal' 
+      },
+      columnStyles: {
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 35 },
+      }
     });
 
-    // Replaced Unicode minus (−) with standard hyphen (-)
-    textY += 6.5;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(17, 24, 39);
-    doc.text(
-      `Total Paid: ${primaryCurrency} ${totalPaid.toFixed(2)}    -    Total Should Pay: ${primaryCurrency} ${totalOwed.toFixed(2)}    =    Net Difference: ${primaryCurrency} ${netBalance.toFixed(2)}`,
-      22,
-      textY
-    );
+    textY = (doc as any).lastAutoTable.finalY + 7;
 
-    // Replaced Unicode arrow (→) with ASCII arrow (->)
-    textY += 5.5;
+    // --- Bottom Action / Summary Lines (VERTICALLY ALIGNED) ---
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
+    
+    // Fixed X coordinates for tabular alignment
+    const labelX = 18;
+    const valueX = 55; // Pushes the values to the right in a straight vertical line
+    
+    // 1. Total Paid (Always Green)
+    doc.setTextColor(22, 163, 74); 
+    doc.text('Total Paid', labelX, textY);
+    doc.text(`${primaryCurrency} ${totalPaid.toFixed(2)}`, valueX, textY);
+    textY += 5;
+
+    // Dynamic Color: Green if receiving (+), Red if giving (-)
+    const actionColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38]; 
+    doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
+
+    // 2. Should Pay/Receive
+    doc.text('Should Pay/Receive', labelX, textY);
+    doc.text(`${primaryCurrency} ${totalOwed.toFixed(2)}`, valueX, textY);
+    textY += 5;
+
+    // 3. Net Difference
+    const netSign = netBalance >= 0 ? '+' : '';
+    doc.text('Net Difference', labelX, textY);
+    doc.text(`${netSign}${primaryCurrency} ${netBalance.toFixed(2)}`, valueX, textY);
+    textY += 5;
+
+    // 4. Final Action (Not aligned, standard sentence)
     if (netBalance < 0) {
-      doc.setTextColor(220, 38, 38);
-      doc.text(
-        `-> Final Action: ${sampleMemberName} pays ${primaryCurrency} ${Math.abs(netBalance).toFixed(2)} directly to ${targetReceiverName}`,
-        22,
-        textY
-      );
+      doc.text(`Final Action: ${sampleMemberName} pays ${primaryCurrency} ${Math.abs(netBalance).toFixed(2)} directly to ${targetReceiverName}`, labelX, textY);
     } else {
-      doc.setTextColor(22, 163, 74);
-      doc.text(
-        `-> Final Action: ${sampleMemberName} receives ${primaryCurrency} ${netBalance.toFixed(2)} in total settlement`,
-        22,
-        textY
-      );
+      doc.text(`Final Action: ${sampleMemberName} receives ${primaryCurrency} ${netBalance.toFixed(2)} in total settlement`, labelX, textY);
     }
   }
 
-  currentY += boxHeight + 12;
+  currentY = currentY + boxHeight + 12;
 
   // End of Report Divider & Text
   doc.setLineWidth(0.5);
