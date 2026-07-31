@@ -6,11 +6,10 @@ import { X, Plus, UserPlus } from 'lucide-react';
 import { Expense } from '../types';
 
 export default function EditExpenseModal({ exp, onClose }: { exp: Expense, onClose: () => void }) {
-  const { activeSpaceId, members } = useAppContext();
+  const { activeSpaceId, members, activeIdentityId, user } = useAppContext();
   
   const [title, setTitle] = useState(exp.title);
   
-  // Format the existing timestamp into a local YYYY-MM-DD string for the date picker
   const dateObj = new Date(exp.date);
   const localDateStr = new Date(dateObj.getTime() - (dateObj.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
   const [date, setDate] = useState(localDateStr);
@@ -20,7 +19,6 @@ export default function EditExpenseModal({ exp, onClose }: { exp: Expense, onClo
   const [tempMemberName, setTempMemberName] = useState('');
   const [tempMembersList, setTempMembersList] = useState<{id: string, name: string}[]>([]);
 
-  // Parse existing payers from the expense object
   const initialPayers = Object.entries(exp.paidBy || {}).map(([memberId, amount]) => ({
     memberId, amount: String(amount)
   }));
@@ -114,7 +112,6 @@ export default function EditExpenseModal({ exp, onClose }: { exp: Expense, onClo
         paidByMap[p.memberId] = parseFloat(p.amount);
       });
 
-      // Update existing document instead of adding a new one
       await updateDoc(doc(db, 'expenses', exp.id), {
         title,
         date: new Date(date).getTime(),
@@ -125,10 +122,14 @@ export default function EditExpenseModal({ exp, onClose }: { exp: Expense, onClo
         updatedAt: Date.now()
       });
 
+      const currentMember = members.find(m => m.id === activeIdentityId);
+      const actorName = currentMember?.name || user?.displayName || 'Someone';
+
       await addDoc(collection(db, 'notifications'), {
         spaceId: activeSpaceId,
         type: 'expense_updated',
-        message: `Expense "${title}" was updated to ${totalAmount} ${currency}`,
+        actorName,
+        message: `updated expense "${title}" to ${totalAmount} ${currency}`,
         timestamp: Date.now()
       });
 
@@ -156,7 +157,6 @@ export default function EditExpenseModal({ exp, onClose }: { exp: Expense, onClo
           {error && <div className="p-3 bg-red-500/20 text-red-500 text-sm rounded-xl">{error}</div>}
 
           <form id="edit-expense-form" onSubmit={handleSave} className="space-y-4">
-            {/* ROW 1: Title & Date */}
             <div className="grid grid-cols-[6fr_4fr] gap-3 w-full">
               <div className="w-full min-w-0">
                 <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Expense Title</label>
@@ -168,7 +168,6 @@ export default function EditExpenseModal({ exp, onClose }: { exp: Expense, onClo
               </div>
             </div>
 
-            {/* ROW 2: Total Amount & Currency */}
             <div className="grid grid-cols-2 gap-3 w-full">
               <div className="w-full min-w-0">
                 <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Total Amount</label>
@@ -186,7 +185,6 @@ export default function EditExpenseModal({ exp, onClose }: { exp: Expense, onClo
               </div>
             </div>
 
-            {/* ROW 3 */}
             <div className="p-3 glass rounded-2xl space-y-2">
               <label className="block text-sm font-bold">Add Temporary Member</label>
               <div className="flex gap-2">
@@ -197,7 +195,6 @@ export default function EditExpenseModal({ exp, onClose }: { exp: Expense, onClo
               </div>
             </div>
 
-            {/* ROW 4 */}
             <div className="w-full min-w-0">
               <div className="flex text-xs opacity-70 font-semibold mb-1 uppercase tracking-wider pl-1">
                 <div className="flex-1 min-w-0">Paid By</div>
@@ -246,7 +243,6 @@ export default function EditExpenseModal({ exp, onClose }: { exp: Expense, onClo
               </button>
             </div>
 
-            {/* ROW 5 */}
             <div>
               <label className="block text-sm font-bold mb-2 pl-1">Participants</label>
               <div className="grid grid-cols-3 gap-2">
@@ -274,7 +270,6 @@ export default function EditExpenseModal({ exp, onClose }: { exp: Expense, onClo
           </form>
         </div>
         
-        {/* ROW 6 */}
         <div className="p-4 border-t border-white/10 bg-white/5 flex gap-3">
           <button type="button" onClick={onClose} className="flex-1 glass-button py-3">
              Cancel
