@@ -470,16 +470,16 @@ export async function exportSpaceDataToPDF(
     doc.text('How Net Minimum Transfers are Calculated:', 18, textY);
     textY += 5;
     
-    doc.text('1. Net Balance Calculation: Each member\'s total payments are balanced against their total assigned expense shares.', 18, textY);
+    doc.text('1. Net Balance Calculation: Each member\'s total payments are balanced against their total assigned expense shares. Think of it as UPI diet mode — same debts settled, way fewer transfers.', 18, textY);
     textY += 5;
     
-    doc.text('2. Debt Minimization: Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions.', 18, textY);
+    doc.text('2. Debt Minimization: Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions. No middlemen, no chains, no 'wait who owes who again' — just the shortest route to zero balance.', 18, textY);
     textY += 5;
 
-    doc.text('3. Example', 18, textY);
+    doc.text('3. For Instance- ', 18, textY);
     textY += 5;
 
-    doc.text(`From Above Expenses, taking as an example of '${sampleMemberName}' ; the calculation was made as-`, 18, textY);
+    doc.text(`From the above Expenses, taking as an example of '${sampleMemberName}' ; the net transfer was simplified as-`, 18, textY);
     textY += 4; 
 
     // Add Inner Table with custom colored cell rendering
