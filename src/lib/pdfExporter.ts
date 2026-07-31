@@ -54,14 +54,19 @@ export async function exportSpaceDataToPDF(
 
     let currentY = 12;
 
-    // 1. App Icon Header
+    // 1. App Icon Header (Larger, bordered, and properly spaced)
     try {
-      // Served relative to root domain for bundlers like Vite/Next/CRA
-      const iconImg = await loadImage('/icon-512.png'); 
+      const iconImg = await loadImage('/icon-512.png');
       if (iconImg) {
-        const iconSize = 16;
-        doc.addImage(iconImg, 'PNG', (pageWidth - iconSize) / 2, currentY, iconSize, iconSize);
-        currentY += iconSize + 4;
+        const iconSize = 22; // Increased size
+        const iconX = (pageWidth - iconSize) / 2;
+        
+        doc.addImage(iconImg, 'PNG', iconX, currentY, iconSize, iconSize);
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(0, 0, 0);
+        doc.rect(iconX, currentY, iconSize, iconSize); // Black border
+        
+        currentY += iconSize + 10; // Extra spacing before main title
       }
     } catch (e) {
       // Fallback gracefully if image path is not found
@@ -420,11 +425,11 @@ export async function exportSpaceDataToPDF(
       ? (finalTransferTarget.toName || getMemberName(finalTransferTarget.to)) 
       : 'Receiver';
 
-    // Calculate Box Height beforehand to draw properly
+    // Calculate Box Height beforehand
     const topTextGap = 32; 
     const rowEstimate = 7.5;
     const tableEstHeight = tableBody.length > 0 ? (tableBody.length + 1) * rowEstimate + 6 : 0;
-    const bottomTextGap = tableBody.length > 0 ? 26 : 0;
+    const bottomTextGap = tableBody.length > 0 ? 28 : 0;
     const paddingBottom = 6;
     
     const boxHeight = topTextGap + tableEstHeight + bottomTextGap + paddingBottom;
@@ -441,7 +446,7 @@ export async function exportSpaceDataToPDF(
 
     let textY = currentY + 7;
 
-    // Apply Uniform Text Style for entire container top
+    // Apply Uniform Text Style for top of container
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(107, 114, 128); // Standard Grey
@@ -474,12 +479,12 @@ export async function exportSpaceDataToPDF(
           font: 'helvetica',
           fontSize: 8, 
           cellPadding: 2, 
-          textColor: [107, 114, 128], // Matching Grey
+          textColor: [107, 114, 128], 
           lineColor: [209, 213, 219],
           lineWidth: 0.1
         },
         headStyles: { 
-          fillColor: [229, 231, 235], // Subtle grey background for table header
+          fillColor: [229, 231, 235], 
           textColor: [107, 114, 128], 
           fontStyle: 'normal' 
         },
@@ -493,45 +498,75 @@ export async function exportSpaceDataToPDF(
 
       textY = (doc as any).lastAutoTable.finalY + 7;
 
-      // --- Bottom Action / Summary Lines (VERTICALLY ALIGNED) ---
+      // --- Bottom Summary Lines (Realigned under Equal Shares column) ---
       doc.setFont('helvetica', 'bold');
       
-      // Fixed X coordinates for tabular alignment
-      const labelX = 18;
-      const containerRightX = pageWidth - 18; // FIX: Added missing variable declaration
-      
-      // Dynamic Color for amounts: Green if receiving (+), Red if giving (-)
+      // Aligned label position directly under the 'Equal Shares' column (X = pageWidth - 88)
+      const labelX = pageWidth - 88; 
+      const containerRightX = pageWidth - 18; 
       const actionColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38]; 
 
-      // 1. Total Paid (Black label, Green amount)
+      // 1. Total Paid
       doc.setTextColor(0, 0, 0); 
       doc.text('Total Paid', labelX, textY);
       doc.setTextColor(22, 163, 74); 
       doc.text(`${primaryCurrency} ${totalPaid.toFixed(2)}`, containerRightX, textY, { align: 'right' });
       textY += 5;
 
-      // 2. Should Pay/Receive (Black label, Dynamic amount)
+      // 2. Should Pay/Receive
       doc.setTextColor(0, 0, 0); 
       doc.text('Should Pay/Receive', labelX, textY);
       doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
       doc.text(`${primaryCurrency} ${totalOwed.toFixed(2)}`, containerRightX, textY, { align: 'right' });
       textY += 5;
 
-      // 3. Net Difference (Black label, Dynamic amount)
+      // 3. Net Difference
       const netSign = netBalance >= 0 ? '+' : '';
       doc.setTextColor(0, 0, 0); 
       doc.text('Net Difference', labelX, textY);
       doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
       doc.text(`${netSign}${primaryCurrency} ${netBalance.toFixed(2)}`, containerRightX, textY, { align: 'right' });
-      textY += 5;
+      textY += 6;
 
-      // 4. Final Action (Black label/text sentence)
+      // 4. Final Action: Bold Title + Highlighted Message Container
+      const titleX = 18;
+      doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 0, 0);
-      if (netBalance < 0) {
-        doc.text(`Final Action: ${sampleMemberName} pays ${primaryCurrency} ${Math.abs(netBalance).toFixed(2)} directly to ${targetReceiverName}`, labelX, textY);
-      } else {
-        doc.text(`Final Action: ${sampleMemberName} receives ${primaryCurrency} ${netBalance.toFixed(2)} in total settlement`, labelX, textY);
-      }
+      const actionTitle = 'Final Action: ';
+      doc.text(actionTitle, titleX, textY);
+      const actionTitleWidth = doc.getTextWidth(actionTitle);
+
+      const msg = netBalance < 0
+        ? `${sampleMemberName} pays ${primaryCurrency} ${Math.abs(netBalance).toFixed(2)} directly to ${targetReceiverName}`
+        : `${sampleMemberName} receives ${primaryCurrency} ${netBalance.toFixed(2)} in total settlement`;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      const msgWidth = doc.getTextWidth(msg);
+      const msgX = titleX + actionTitleWidth;
+
+      // Soft Red or Soft Green styling for message badge
+      const bgFill = netBalance >= 0 ? [220, 252, 231] : [254, 226, 226]; // #DCFCE7 or #FEE2E2
+      const textColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38]; // Dark green or dark red
+      const borderColor = netBalance >= 0 ? [187, 247, 208] : [254, 202, 202];
+
+      const boxPaddingX = 2;
+      doc.setFillColor(bgFill[0], bgFill[1], bgFill[2]);
+      doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+      
+      // Draw container around ONLY the message text
+      doc.roundedRect(
+        msgX - boxPaddingX, 
+        textY - 3.5, 
+        msgWidth + (boxPaddingX * 2), 
+        5, 
+        1, 
+        1, 
+        'FD'
+      );
+
+      doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+      doc.text(msg, msgX, textY);
     }
 
     currentY = currentY + boxHeight + 12;
