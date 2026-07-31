@@ -109,11 +109,15 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
       const currentMember = members.find(m => m.id === activeIdentityId);
       const actorName = currentMember?.name || user?.displayName || 'Someone';
 
+      const notificationMessage = selectedExpenseIds.length === 1 
+        ? `completed settlement for expense "${expenses[0]?.title || 'Unknown'}"`
+        : `completed settlement for ${selectedExpenseIds.length} expense(s)`;
+
       await addDoc(collection(db, 'notifications'), {
         spaceId: activeSpaceId,
         type: 'settlement_completed',
         actorName,
-        message: `completed settlement for ${selectedExpenseIds.length} expense(s)`,
+        message: notificationMessage,
         timestamp: Date.now()
       });
 
