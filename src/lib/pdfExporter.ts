@@ -10,17 +10,19 @@ import {
 import { format } from 'date-fns';
 
 /**
- * Returns currency symbol instead of text code
+ * Returns plain text currency codes.
+ * Standard jsPDF fonts do not support Unicode symbols (৳, ₹, €, £).
+ * Using text prevents gibberish characters in the exported PDF.
  */
 function getCurrencySymbol(symbol: string): string {
-  if (!symbol) return '$';
+  if (!symbol) return 'USD';
   const s = symbol.trim();
-  if (s === 'BDT' || s === 'Taka' || s === '৳') return '৳';
-  if (s === 'INR' || s === 'Rupee' || s === '₹') return '₹';
-  if (s === 'EUR' || s === '€') return '€';
-  if (s === 'GBP' || s === '£') return '£';
-  if (s === 'JPY' || s === '¥') return '¥';
-  if (s === 'USD' || s === '$') return '$';
+  if (s === '৳' || s === 'Taka' || s === 'BDT') return 'BDT';
+  if (s === '₹' || s === 'Rupee' || s === 'INR') return 'INR';
+  if (s === '€' || s === 'EUR') return 'EUR';
+  if (s === '£' || s === 'GBP') return 'GBP';
+  if (s === '¥' || s === 'JPY') return 'JPY';
+  if (s === '$' || s === 'USD') return '$';
   return s;
 }
 
@@ -63,7 +65,7 @@ export async function exportSpaceDataToPDF(
     // Fallback gracefully if image path is not found
   }
 
-  // 2. Main Title: BabySplit (Centered, Bold, Navy Blue, Largest)
+  // 2. Main Title: BabySplit
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(26);
   doc.setTextColor(26, 54, 93); // Navy Blue
@@ -79,7 +81,7 @@ export async function exportSpaceDataToPDF(
   doc.text(splitDesc, pageWidth / 2, currentY, { align: 'center' });
   currentY += splitDesc.length * 4.5 + 4;
 
-  // 4. Report Tag (Centered, Bold, Underlined, Black)
+  // 4. Report Tag
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(0, 0, 0);
@@ -91,7 +93,7 @@ export async function exportSpaceDataToPDF(
 
   currentY += 12;
 
-  // Helper for Section Headings (No numbering, Bold, Underlined, Black font)
+  // Helper for Section Headings
   const renderHeading = (title: string, xPos: number, yPos: number) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
@@ -109,7 +111,6 @@ export async function exportSpaceDataToPDF(
 
   currentY += 4;
 
-  // Prepare 3x2 Grid for Space Members (fitting 3 lines)
   const memberNames = members.map(m => m.name);
   const membersGridBody: string[][] = [];
   for (let i = 0; i < 3; i++) {
@@ -118,7 +119,6 @@ export async function exportSpaceDataToPDF(
     membersGridBody.push([m1, m2]);
   }
 
-  // Left Table: Space Information (3 lines)
   autoTable(doc, {
     startY: currentY,
     margin: { left: 14, right: pageWidth - 102 },
@@ -134,7 +134,6 @@ export async function exportSpaceDataToPDF(
     styles: { fontSize: 8.5, cellPadding: 2.5 },
   });
 
-  // Right Table: Space Members (3x2 grid fitting same 3 lines)
   autoTable(doc, {
     startY: currentY,
     margin: { left: 108, right: 14 },
@@ -148,7 +147,6 @@ export async function exportSpaceDataToPDF(
 
   currentY = Math.max((doc as any).lastAutoTable.finalY, currentY + 32) + 10;
 
-  // Filter expenses according to selection
   const filteredExpenses = expenses.filter(exp => {
     const status = getExpenseStatus(exp);
     if (filter === 'settled') return status === 'Fully Settled';
@@ -177,24 +175,19 @@ export async function exportSpaceDataToPDF(
     const currencySym = getCurrencySymbol(exp.currency);
     const totalAmtStr = `${currencySym} ${exp.totalAmount.toFixed(2)}`;
 
-    // Paid By
     const paidByStr = Object.entries(exp.paidBy || {})
       .map(([pId, amt]) => `${getMemberName(pId)}: ${currencySym} ${amt.toFixed(2)}`)
       .join('\n');
 
-    // Participants
     const participantsList = (exp.participants || []).map(pId => getMemberName(pId));
     const participantsStr = participantsList.join(', ');
 
-    // Equal Share
     const numP = participantsList.length || 1;
     const equalShareVal = (exp.totalAmount / numP).toFixed(2);
     const equalShareStr = `${currencySym} ${equalShareVal} / person`;
 
-    // Settlement Status
     const status = getExpenseStatus(exp);
 
-    // Settled Date & By
     let settledInfo = 'Not Settled';
     if (exp.settledAt) {
       const settledDate = format(new Date(exp.settledAt), 'dd/MM/yyyy');
@@ -239,10 +232,10 @@ export async function exportSpaceDataToPDF(
     columnStyles: {
       0: { cellWidth: 25 },
       1: { cellWidth: 18 },
-      2: { cellWidth: 20, fontStyle: 'bold', textColor: [37, 99, 235] },
+      2: { cellWidth: 22, fontStyle: 'bold', textColor: [37, 99, 235] },
       3: { cellWidth: 30 },
       4: { cellWidth: 30 },
-      5: { cellWidth: 20, textColor: [75, 85, 99] },
+      5: { cellWidth: 22, textColor: [75, 85, 99] },
       6: { cellWidth: 18 },
       7: { cellWidth: 21 },
     },
@@ -295,7 +288,6 @@ export async function exportSpaceDataToPDF(
         const settled = isTransactionSettled(exp, tx);
         const row: any[] = [];
         
-        // Merging Expense Title cell across all flows for this expense
         if (idx === 0) {
           row.push({ 
             content: exp.title, 
@@ -323,17 +315,17 @@ export async function exportSpaceDataToPDF(
     headStyles: { fillColor: [99, 102, 241], textColor: 255, fontStyle: 'bold' },
     styles: { fontSize: 8.5, cellPadding: 2.5 },
     didParseCell: (data) => {
+      // FIX: Lock styling strictly to column indexes 3 (Amount) and 4 (Status)
       if (data.section === 'body') {
-        const rawRow = data.row.raw as any[];
-        const flowStatusCell = rawRow[rawRow.length - 1]; 
-        const amountCellIndex = rawRow.length - 2;
-
-        if (data.column.index === amountCellIndex || data.column.index === rawRow.length - 1) {
+        if (data.column.index === 3 || data.column.index === 4) {
+          const rawRow = data.row.raw as any[];
+          const flowStatusCell = rawRow[rawRow.length - 1]; 
+          
           data.cell.styles.fontStyle = 'bold';
           if (flowStatusCell === 'Settled') {
-            data.cell.styles.textColor = [22, 163, 74];
+            data.cell.styles.textColor = [22, 163, 74]; // Green
           } else {
-            data.cell.styles.textColor = [220, 38, 38];
+            data.cell.styles.textColor = [220, 38, 38]; // Red
           }
         }
       }
@@ -411,9 +403,9 @@ export async function exportSpaceDataToPDF(
       const netExp = paid - share;
       const sign = netExp >= 0 ? '+' : '';
       
-      // Clean single line per expense using plain terms
+      // Clean ASCII characters only (- instead of • or −)
       breakdownLines.push(
-        `• ${exp.title} — Paid: ${currSym} ${paid.toFixed(2)}   |   Should Pay: ${currSym} ${share.toFixed(2)}   |   Net: ${sign}${currSym} ${netExp.toFixed(2)}`
+        `- ${exp.title} - Paid: ${currSym} ${paid.toFixed(2)}   |   Should Pay: ${currSym} ${share.toFixed(2)}   |   Net: ${sign}${currSym} ${netExp.toFixed(2)}`
       );
     }
   });
@@ -424,7 +416,6 @@ export async function exportSpaceDataToPDF(
     ? (finalTransferTarget.toName || getMemberName(finalTransferTarget.to)) 
     : 'Receiver';
 
-  // Spaced line-height calculation for a neat layout
   const lineSpacing = 5.5; 
   const baseBoxHeight = 28;
   const exampleHeaderHeight = breakdownLines.length > 0 ? 10 : 0;
@@ -433,20 +424,17 @@ export async function exportSpaceDataToPDF(
   
   const boxHeight = baseBoxHeight + exampleHeaderHeight + exampleLinesHeight + exampleSummaryHeight;
 
-  // Check page overflow
   if (currentY + boxHeight > pageHeight - 20) {
     doc.addPage();
     currentY = 15;
   }
 
-  // Draw Single Unified Calculation Container Box
   doc.setFillColor(243, 244, 246);
   doc.setDrawColor(209, 213, 219);
   doc.roundedRect(14, currentY, pageWidth - 28, boxHeight, 2, 2, 'FD');
 
   let textY = currentY + 7;
 
-  // Standard Calculation Explanations
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(55, 65, 81);
@@ -461,50 +449,48 @@ export async function exportSpaceDataToPDF(
   textY += 5;
   doc.text('2. Debt Minimization: Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions.', 18, textY);
 
-  // Append Spaced Member Audit Breakdown
   if (breakdownLines.length > 0) {
     textY += 7;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
-    doc.setTextColor(30, 58, 138); // Dark Navy Blue
+    doc.setTextColor(30, 58, 138);
     doc.text(`3. Detailed Calculation Example for ${sampleMemberName}:`, 18, textY);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.2);
     doc.setTextColor(75, 85, 99);
 
-    // Neat, spaced-out lines for each expense
     breakdownLines.forEach(line => {
       textY += lineSpacing;
       doc.text(line, 22, textY);
     });
 
-    // Summary Totals Line
+    // Replaced Unicode minus (−) with standard hyphen (-)
     textY += 6.5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(17, 24, 39);
     doc.text(
-      `Total Paid: ${primaryCurrency} ${totalPaid.toFixed(2)}    −    Total Should Pay: ${primaryCurrency} ${totalOwed.toFixed(2)}    =    Net Difference: ${primaryCurrency} ${netBalance.toFixed(2)}`,
+      `Total Paid: ${primaryCurrency} ${totalPaid.toFixed(2)}    -    Total Should Pay: ${primaryCurrency} ${totalOwed.toFixed(2)}    =    Net Difference: ${primaryCurrency} ${netBalance.toFixed(2)}`,
       22,
       textY
     );
 
-    // Final Action Line (Plain, clear language)
+    // Replaced Unicode arrow (→) with ASCII arrow (->)
     textY += 5.5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     if (netBalance < 0) {
-      doc.setTextColor(220, 38, 38); // Red
+      doc.setTextColor(220, 38, 38);
       doc.text(
-        `→ Final Action: ${sampleMemberName} pays ${primaryCurrency} ${Math.abs(netBalance).toFixed(2)} directly to ${targetReceiverName}`,
+        `-> Final Action: ${sampleMemberName} pays ${primaryCurrency} ${Math.abs(netBalance).toFixed(2)} directly to ${targetReceiverName}`,
         22,
         textY
       );
     } else {
-      doc.setTextColor(22, 163, 74); // Green
+      doc.setTextColor(22, 163, 74);
       doc.text(
-        `→ Final Action: ${sampleMemberName} receives ${primaryCurrency} ${netBalance.toFixed(2)} in total settlement`,
+        `-> Final Action: ${sampleMemberName} receives ${primaryCurrency} ${netBalance.toFixed(2)} in total settlement`,
         22,
         textY
       );
@@ -512,46 +498,6 @@ export async function exportSpaceDataToPDF(
   }
 
   currentY += boxHeight + 12;
-
-  // 9. Member Signatures Block (3x2 Grid at Last Page Bottom)
-  const sigBlockHeight = 65;
-  if (currentY + sigBlockHeight > pageHeight - 20) {
-    doc.addPage();
-    currentY = 20;
-  }
-
-  renderHeading('Space Members Signatures & Approvals', 14, currentY);
-  currentY += 10;
-
-  // Render Members in 3x2 Grid
-  const gridCols = 3;
-  const marginX = 14;
-  const totalWidth = pageWidth - marginX * 2;
-  const colWidth = totalWidth / gridCols;
-  const rowHeight = 22;
-
-  members.forEach((member, idx) => {
-    const row = Math.floor(idx / gridCols);
-    const col = idx % gridCols;
-
-    const cellX = marginX + col * colWidth + colWidth / 2;
-    const cellY = currentY + row * rowHeight;
-
-    // Handwritten Blue Signature (Pen Style)
-    doc.setFont('times', 'italic');
-    doc.setFontSize(18);
-    doc.setTextColor(29, 78, 216); // Royal Blue Pen Ink
-    doc.text(member.name, cellX, cellY + 6, { align: 'center' });
-
-    // Printed Member Name (Bold Black)
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(17, 24, 39); // Bold Black
-    doc.text(member.name.toUpperCase(), cellX, cellY + 13, { align: 'center' });
-  });
-
-  const totalRows = Math.ceil(members.length / gridCols) || 1;
-  currentY += totalRows * rowHeight + 12;
 
   // End of Report Divider & Text
   doc.setLineWidth(0.5);
