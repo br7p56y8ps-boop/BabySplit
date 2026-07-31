@@ -441,8 +441,18 @@ export async function exportSpaceDataToPDF(
       ? (finalTransferTarget.toName || getMemberName(finalTransferTarget.to)) 
       : 'Receiver';
 
-    // Calculate Box Height beforehand
-    const topTextGap = 32; 
+    // Calculate Box Height dynamically based on wrapped text lengths
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    
+    const textMaxWidth = pageWidth - 36; // Keep 18px margin on both sides
+    const p1 = doc.splitTextToSize('1. Net Balance Calculation: Each member\'s total payments are balanced against their total assigned expense shares. Think of it as UPI diet mode — same debts settled, way fewer transfers.', textMaxWidth);
+    const p2 = doc.splitTextToSize("2. Debt Minimization: Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions. No middlemen, no chains, no 'wait who owes who again' — just the shortest route to zero balance.", textMaxWidth);
+    const p3 = doc.splitTextToSize(`From the above Expenses, taking as an example of '${sampleMemberName}' ; the net transfer was simplified as-`, textMaxWidth);
+
+    const lineHeight = 3.5;
+    const topTextGap = 7 + 5 + (p1.length * lineHeight + 1.5) + (p2.length * lineHeight + 1.5) + 5 + (p3.length * lineHeight + 0.5);
+
     const rowEstimate = 7.5;
     const tableEstHeight = tableBodyRaw.length > 0 ? (tableBodyRaw.length + 1) * rowEstimate + 6 : 0;
     const bottomTextGap = tableBodyRaw.length > 0 ? 32 : 0;
@@ -470,18 +480,17 @@ export async function exportSpaceDataToPDF(
     doc.text('How Net Minimum Transfers are Calculated:', 18, textY);
     textY += 5;
     
-    doc.text('1. Net Balance Calculation: Each member\'s total payments are balanced against their total assigned expense shares. Think of it as UPI diet mode — same debts settled, way fewer transfers.', 18, textY);
-    textY += 5;
+    doc.text(p1, 18, textY);
+    textY += p1.length * lineHeight + 1.5;
     
-    // FIXED: Changed this string to use double quotes to prevent unescaped single quotes from breaking the build
-    doc.text("2. Debt Minimization: Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions. No middlemen, no chains, no 'wait who owes who again' — just the shortest route to zero balance.", 18, textY);
-    textY += 5;
+    doc.text(p2, 18, textY);
+    textY += p2.length * lineHeight + 1.5;
 
     doc.text('3. For Instance- ', 18, textY);
     textY += 5;
 
-    doc.text(`From the above Expenses, taking as an example of '${sampleMemberName}' ; the net transfer was simplified as-`, 18, textY);
-    textY += 4; 
+    doc.text(p3, 18, textY);
+    textY += p3.length * lineHeight + 0.5; 
 
     // Add Inner Table with custom colored cell rendering
     if (tableBodyRaw.length > 0) {
