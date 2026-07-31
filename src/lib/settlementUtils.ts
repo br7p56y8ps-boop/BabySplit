@@ -1,6 +1,6 @@
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from './firebase';
-import { Expense, ExpenseSettlement } from '../types';
+import { Expense, ExpenseSettlement, Member } from '../types';
 
 export interface Transaction {
   id: string;
@@ -8,6 +8,15 @@ export interface Transaction {
   to: string; // creditorId
   amount: number;
   currency: string;
+}
+
+export interface NetTransfer {
+  from: string;
+  fromName: string;
+  to: string;
+  toName: string;
+  amount: number;
+  currency?: string;
 }
 
 export function calculateExpenseTransactions(exp: Expense): Transaction[] {
@@ -285,4 +294,82 @@ export async function undoSingleTransactionSettlement(exp: Expense, tx: Transact
   }
 
   await updateDoc(doc(db, 'expenses', exp.id), updateData);
+}
+
+/**
+ * Calculates simplified net transfers across all provided expenses using a greedy algorithm.
+ */
+export function calculateNetTransfers(expenses: Expense[], members: Member[]): NetTransfer[] {
+  const balances: Record<string, number> = {};
+
+  // Initialize balances for all members
+  members.forEach(m => {
+    balances[m.id] = 0;
+  });
+
+  // Aggregate net balance across all provided expenses
+  expenses.forEach(exp => {
+    const totalAmount = exp.totalAmount || 0;
+    const participants = exp.participants || [];
+    const sharePerPerson = participants.length > 0 ? totalAmount / participants.length : 0;
+
+    // Add paid amounts (creditors)
+    if (exp.paidBy) {
+      Object.entries(exp.paidBy).forEach(([payerId, amount]) => {
+        balances[payerId] = (balances[payerId] || 0) + Number(amount || 0);
+      });
+    }
+
+    // Subtract owed amounts (debtors)
+    participants.forEach(participantId => {
+      balances[participantId] = (balances[participantId] || 0) - sharePerPerson;
+    });
+  });
+
+  const getMemberName = (id: string) => members.find(m => m.id === id)?.name || id;
+
+  const debtors: { id: string; name: string; amount: number }[] = [];
+  const creditors: { id: string; name: string; amount: number }[] = [];
+
+  Object.entries(balances).forEach(([id, netAmount]) => {
+    const rounded = Math.round(netAmount * 100) / 100;
+    if (rounded < -0.01) {
+      debtors.push({ id, name: getMemberName(id), amount: Math.abs(rounded) });
+    } else if (rounded > 0.01) {
+      creditors.push({ id, name: getMemberName(id), amount: rounded });
+    }
+  });
+
+  debtors.sort((a, b) => b.amount - a.amount);
+  creditors.sort((a, b) => b.amount - a.amount);
+
+  const transfers: NetTransfer[] = [];
+  let i = 0;
+  let j = 0;
+
+  while (i < debtors.length && j < creditors.length) {
+    const debtor = debtors[i];
+    const creditor = creditors[j];
+    const settlementAmount = Math.min(debtor.amount, creditor.amount);
+
+    if (settlementAmount > 0.01) {
+      const fixedAmt = Math.round(settlementAmount * 100) / 100;
+      transfers.push({
+        from: debtor.id,
+        fromName: debtor.name,
+        to: creditor.id,
+        toName: creditor.name,
+        amount: fixedAmt,
+        currency: expenses[0]?.currency || 'Taka',
+      });
+    }
+
+    debtor.amount -= settlementAmount;
+    creditor.amount -= settlementAmount;
+
+    if (debtor.amount <= 0.01) i++;
+    if (creditor.amount <= 0.01) j++;
+  }
+
+  return transfers;
 }
