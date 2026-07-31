@@ -1,0 +1,6 @@
+{
+  "name": "babysplitter",
+  "assets": {
+    "directory": "./dist"
+  }
+}
