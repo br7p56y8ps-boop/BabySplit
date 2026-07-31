@@ -4,7 +4,7 @@ import { doc, deleteDoc, addDoc, collection, updateDoc } from 'firebase/firestor
 import { db } from '../lib/firebase';
 import { PRESET_MEMBERS } from '../lib/db';
 import { isMemberCreator } from '../lib/spaceUtils';
-import { X, UserPlus, UserMinus, ShieldCheck, Edit3, Check, Shield } from 'lucide-react';
+import { X, UserPlus, UserMinus, ShieldCheck, Edit3, Check } from 'lucide-react';
 import { Member } from '../types';
 
 interface SpaceManagementModalProps {
@@ -56,7 +56,6 @@ export default function SpaceManagementModal({ onClose }: SpaceManagementModalPr
     if (!permanentMemberName.trim()) return;
     setLoading(true);
     try {
-      // Permanent members belong to public space & permanent global pool
       await addDoc(collection(db, 'members'), {
         spaceId: 'public',
         name: permanentMemberName.trim(),
@@ -127,8 +126,8 @@ export default function SpaceManagementModal({ onClose }: SpaceManagementModalPr
               {isPublic ? 'Permanent Public Members' : 'Active Members'} ({members.length})
             </h3>
             
-            {/* Compact 2x3 or Responsive Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {/* Compact 2x3 or 3x2 Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {members.map(m => {
                 const isPreset = isPresetMember(m);
                 const isEditing = editingMemberId === m.id;
@@ -137,10 +136,10 @@ export default function SpaceManagementModal({ onClose }: SpaceManagementModalPr
                 return (
                   <div 
                     key={m.id} 
-                    className="glass p-2.5 rounded-2xl flex flex-col justify-between space-y-1.5 border border-white/10 relative group"
+                    className="glass p-3 rounded-2xl flex flex-col justify-between border border-white/10 relative group aspect-[4/3] sm:aspect-square"
                   >
                     {isEditing ? (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 my-auto">
                         <input
                           type="text"
                           inputMode="text"
@@ -158,49 +157,50 @@ export default function SpaceManagementModal({ onClose }: SpaceManagementModalPr
                       </div>
                     ) : (
                       <>
-                        <div>
-                          <div className="font-bold text-xs truncate flex items-center justify-between gap-1">
-                            <span>{m.name}</span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1 mt-1">
-                            {isCreatorMember && !isPublic ? (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30 flex items-center gap-0.5">
-                                🛡 Creator
-                              </span>
-                            ) : isPreset ? (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-extrabold border border-purple-500/30">
-                                Preset
-                              </span>
-                            ) : m.isTemporary ? (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-extrabold">
-                                Guest
-                              </span>
-                            ) : (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-extrabold">
-                                Permanent
-                              </span>
+                        {/* Top Header: Member Name & Action Icons */}
+                        <div className="flex items-start justify-between gap-1 w-full">
+                          <span className="font-bold text-xs truncate leading-tight" title={m.name}>
+                            {m.name}
+                          </span>
+                          <div className="flex items-center gap-0.5 shrink-0 -mr-1 -mt-1">
+                            <button
+                              onClick={() => handleStartRename(m)}
+                              className="p-1 text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors"
+                              title="Rename Member"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            
+                            {!isPreset && (isPublic || isCreator) && (
+                              <button
+                                onClick={() => handleDeleteMember(m)}
+                                className="p-1 text-red-400 hover:bg-red-500/20 rounded-md transition-colors"
+                                title="Delete Member"
+                              >
+                                <UserMinus className="w-3.5 h-3.5" />
+                              </button>
                             )}
                           </div>
                         </div>
 
-                        {/* Control buttons */}
-                        <div className="flex items-center justify-end gap-1 pt-1 border-t border-white/10">
-                          <button
-                            onClick={() => handleStartRename(m)}
-                            className="p-1 text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors"
-                            title="Rename Member"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          
-                          {!isPreset && (isPublic || isCreator) && (
-                            <button
-                              onClick={() => handleDeleteMember(m)}
-                              className="p-1 text-red-400 hover:bg-red-500/20 rounded-md transition-colors"
-                              title="Delete Member"
-                            >
-                              <UserMinus className="w-3.5 h-3.5" />
-                            </button>
+                        {/* Bottom: Badge */}
+                        <div className="flex flex-wrap items-center gap-1">
+                          {isCreatorMember && !isPublic ? (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30 flex items-center gap-0.5">
+                              🛡 Creator
+                            </span>
+                          ) : isPreset ? (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-extrabold border border-purple-500/30">
+                              Preset
+                            </span>
+                          ) : m.isTemporary ? (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30">
+                              Guest
+                            </span>
+                          ) : (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-extrabold border border-blue-500/30">
+                              Permanent
+                            </span>
                           )}
                         </div>
                       </>
@@ -213,7 +213,7 @@ export default function SpaceManagementModal({ onClose }: SpaceManagementModalPr
 
           {/* Add Form Logic */}
           {isPublic ? (
-            /* Public Space: ONLY Permanent Member Management */
+            /* Public Space: Permanent Member Management */
             <div className="p-3 glass rounded-2xl space-y-2 border border-purple-500/30 bg-purple-500/5">
               <div className="flex items-center gap-1.5 text-purple-400">
                 <ShieldCheck className="w-4 h-4" />
