@@ -144,7 +144,7 @@ export default function Settings() {
                 <h2 className="text-lg font-extrabold">{activeMember?.name || 'Guest'}</h2>
                 {isActiveMemberCreator && !isPublic && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30">
-                    🛡 Creator
+                    🕵🏼 Creator
                   </span>
                 )}
               </div>
