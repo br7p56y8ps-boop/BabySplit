@@ -54,11 +54,11 @@ export async function exportSpaceDataToPDF(
 
     let currentY = 12;
 
-    // 1. App Icon Header (Larger, bordered, and properly spaced)
+    // 1. App Icon Header (Size 26, 3 line breaks space after)
     try {
       const iconImg = await loadImage('/icon-512.png');
       if (iconImg) {
-        const iconSize = 22; // Increased size
+        const iconSize = 26; // Updated size: 26
         const iconX = (pageWidth - iconSize) / 2;
         
         doc.addImage(iconImg, 'PNG', iconX, currentY, iconSize, iconSize);
@@ -66,7 +66,7 @@ export async function exportSpaceDataToPDF(
         doc.setDrawColor(0, 0, 0);
         doc.rect(iconX, currentY, iconSize, iconSize); // Black border
         
-        currentY += iconSize + 10; // Extra spacing before main title
+        currentY += iconSize + 12; // 3 line breaks (~12pt) after icon
       }
     } catch (e) {
       // Fallback gracefully if image path is not found
@@ -86,7 +86,8 @@ export async function exportSpaceDataToPDF(
     const descText = 'App that Split expenses effortlessly across public and private spaces. Real-time settlements, minimal transaction routing, and full transparency.';
     const splitDesc = doc.splitTextToSize(descText, pageWidth - 40);
     doc.text(splitDesc, pageWidth / 2, currentY, { align: 'center' });
-    currentY += splitDesc.length * 4.5 + 4;
+    
+    currentY += splitDesc.length * 4.5 + 20; // 5 line breaks (~20pt) after description
 
     // 4. Report Tag
     doc.setFont('helvetica', 'bold');
@@ -98,9 +99,9 @@ export async function exportSpaceDataToPDF(
     doc.setDrawColor(0, 0, 0);
     doc.line((pageWidth - reportTextWidth) / 2, currentY + 1, (pageWidth + reportTextWidth) / 2, currentY + 1);
 
-    currentY += 12;
+    currentY += 20; // 5 line breaks (~20pt) after Report tag
 
-    // Helper for Section Headings
+    // Helper for Section Headings (+3 line breaks extra space after each heading)
     const renderHeading = (title: string, xPos: number, yPos: number) => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
@@ -116,7 +117,7 @@ export async function exportSpaceDataToPDF(
     renderHeading('Space Information', 14, currentY);
     renderHeading('Space Members', 108, currentY);
 
-    currentY += 4;
+    currentY += 16; // 4pt base + 12pt (+3 line breaks) extra space after heading
 
     const memberNames = members.map(m => m.name);
     const membersGridBody: string[][] = [];
@@ -175,7 +176,7 @@ export async function exportSpaceDataToPDF(
         : 'Expense Overview';
 
     renderHeading(overviewTitle, 14, currentY);
-    currentY += 4;
+    currentY += 16; // +3 line breaks extra space
 
     const expensesBody = filteredExpenses.map(exp => {
       const dateStr = exp.date ? format(new Date(exp.date), 'dd/MM/yyyy') : '-';
@@ -274,7 +275,7 @@ export async function exportSpaceDataToPDF(
     }
 
     renderHeading('Itemized Expense Payment Flow', 14, currentY);
-    currentY += 4;
+    currentY += 16; // +3 line breaks extra space
 
     const itemizedTxRows: any[] = [];
     filteredExpenses.forEach(exp => {
@@ -347,7 +348,7 @@ export async function exportSpaceDataToPDF(
     }
 
     renderHeading('Net Minimum Transfer Flow', 14, currentY);
-    currentY += 4;
+    currentY += 16; // +3 line breaks extra space
 
     const netTransfers = calculateNetTransfers 
       ? calculateNetTransfers(filteredExpenses, members) 
@@ -393,10 +394,10 @@ export async function exportSpaceDataToPDF(
 
     let totalPaid = 0;
     let totalOwed = 0;
-    const tableBody: any[][] = [];
+    const tableBodyRaw: Array<{ title: string; currSym: string; paid: number; share: number; netExp: number }> = [];
     const primaryCurrency = getCurrencySymbol(filteredExpenses[0]?.currency || '');
 
-    // Build Table Rows
+    // Build Table Data
     filteredExpenses.forEach(exp => {
       const currSym = getCurrencySymbol(exp.currency);
       const paid = exp.paidBy?.[sampleMemberId] || 0;
@@ -408,14 +409,14 @@ export async function exportSpaceDataToPDF(
         totalPaid += paid;
         totalOwed += share;
         const netExp = paid - share;
-        const sign = netExp >= 0 ? '+' : '';
         
-        tableBody.push([
-          exp.title,
-          `${currSym} ${paid.toFixed(2)}`,
-          `${currSym} ${share.toFixed(2)}`,
-          `${sign}${currSym} ${netExp.toFixed(2)}`
-        ]);
+        tableBodyRaw.push({
+          title: exp.title,
+          currSym,
+          paid,
+          share,
+          netExp
+        });
       }
     });
 
@@ -428,8 +429,8 @@ export async function exportSpaceDataToPDF(
     // Calculate Box Height beforehand
     const topTextGap = 32; 
     const rowEstimate = 7.5;
-    const tableEstHeight = tableBody.length > 0 ? (tableBody.length + 1) * rowEstimate + 6 : 0;
-    const bottomTextGap = tableBody.length > 0 ? 28 : 0;
+    const tableEstHeight = tableBodyRaw.length > 0 ? (tableBodyRaw.length + 1) * rowEstimate + 6 : 0;
+    const bottomTextGap = tableBodyRaw.length > 0 ? 32 : 0;
     const paddingBottom = 6;
     
     const boxHeight = topTextGap + tableEstHeight + bottomTextGap + paddingBottom;
@@ -466,14 +467,22 @@ export async function exportSpaceDataToPDF(
     doc.text(`From Above Expenses, taking as an example of '${sampleMemberName}' ; the calculation was made as-`, 18, textY);
     textY += 4; 
 
-    // Add Inner Table 
-    if (tableBody.length > 0) {
+    // Add Inner Table with custom colored cell rendering
+    if (tableBodyRaw.length > 0) {
+      // Map body data as placeholder empty strings for Paid and Net Amount columns
+      const tableBodyForAutoTable = tableBodyRaw.map(r => [
+        r.title,
+        '', 
+        `${r.currSym} ${r.share.toFixed(2)}`,
+        ''  
+      ]);
+
       autoTable(doc, {
         startY: textY,
         margin: { left: 18, right: 18 },
         tableWidth: pageWidth - 36,
         head: [['Title', 'Paid', 'Equal Shares', 'Net Amount']],
-        body: tableBody,
+        body: tableBodyForAutoTable,
         theme: 'grid',
         styles: { 
           font: 'helvetica',
@@ -493,80 +502,166 @@ export async function exportSpaceDataToPDF(
           1: { cellWidth: 35 },
           2: { cellWidth: 35 },
           3: { cellWidth: 35 },
+        },
+        didDrawCell: (data) => {
+          if (data.section === 'body') {
+            const rowData = tableBodyRaw[data.row.index];
+            if (!rowData) return;
+
+            const textYPos = data.cell.y + (data.cell.height / 2) + 1;
+            const textXPos = data.cell.x + 2;
+
+            // Paid Column Custom Formatting
+            if (data.column.index === 1) {
+              doc.setFont('helvetica', 'normal');
+              doc.setFontSize(8);
+              doc.setTextColor(107, 114, 128); // Grey Currency
+              const currText = `${rowData.currSym} `;
+              doc.text(currText, textXPos, textYPos);
+
+              const currWidth = doc.getTextWidth(currText);
+              if (rowData.paid > 0) {
+                doc.setTextColor(22, 163, 74); // Green if paid > 0
+              } else {
+                doc.setTextColor(107, 114, 128); // Grey if 0
+              }
+              doc.text(rowData.paid.toFixed(2), textXPos + currWidth, textYPos);
+            }
+
+            // Net Amount Column Custom Formatting
+            if (data.column.index === 3) {
+              doc.setFont('helvetica', 'normal');
+              doc.setFontSize(8);
+              doc.setTextColor(107, 114, 128); // Grey Currency
+              const currText = `${rowData.currSym} `;
+              doc.text(currText, textXPos, textYPos);
+
+              const currWidth = doc.getTextWidth(currText);
+              const sign = rowData.netExp >= 0 ? '+' : '-';
+              const amtValStr = `${sign}${Math.abs(rowData.netExp).toFixed(2)}`;
+
+              if (rowData.netExp >= 0) {
+                doc.setTextColor(22, 163, 74); // Green for positive
+              } else {
+                doc.setTextColor(220, 38, 38); // Red for negative
+              }
+              doc.text(amtValStr, textXPos + currWidth, textYPos);
+            }
+          }
         }
       });
 
       textY = (doc as any).lastAutoTable.finalY + 7;
 
-      // --- Bottom Summary Lines (Realigned under Equal Shares column) ---
+      // --- Bottom Summary Lines (Aligned with Equal Shares & Net Amount Columns) ---
       doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
       
-      // Aligned label position directly under the 'Equal Shares' column (X = pageWidth - 88)
-      const labelX = pageWidth - 88; 
-      const containerRightX = pageWidth - 18; 
+      const equalSharesColX = pageWidth - 88; // Aligns with Equal Shares column
+      const netAmountColX = pageWidth - 53;   // Aligns with Net Amount column
       const actionColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38]; 
 
       // 1. Total Paid
       doc.setTextColor(0, 0, 0); 
-      doc.text('Total Paid', labelX, textY);
+      doc.text('Total Paid', equalSharesColX, textY);
+      doc.setTextColor(0, 0, 0); 
+      const currStr1 = `${primaryCurrency} `;
+      doc.text(currStr1, netAmountColX, textY);
       doc.setTextColor(22, 163, 74); 
-      doc.text(`${primaryCurrency} ${totalPaid.toFixed(2)}`, containerRightX, textY, { align: 'right' });
+      doc.text(totalPaid.toFixed(2), netAmountColX + doc.getTextWidth(currStr1), textY);
       textY += 5;
 
       // 2. Should Pay/Receive
       doc.setTextColor(0, 0, 0); 
-      doc.text('Should Pay/Receive', labelX, textY);
+      doc.text('Should Pay/Receive', equalSharesColX, textY);
+      doc.setTextColor(0, 0, 0); 
+      const currStr2 = `${primaryCurrency} `;
+      doc.text(currStr2, netAmountColX, textY);
       doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
-      doc.text(`${primaryCurrency} ${totalOwed.toFixed(2)}`, containerRightX, textY, { align: 'right' });
+      doc.text(totalOwed.toFixed(2), netAmountColX + doc.getTextWidth(currStr2), textY);
       textY += 5;
 
       // 3. Net Difference
-      const netSign = netBalance >= 0 ? '+' : '';
+      const netSign = netBalance >= 0 ? '+' : '-';
       doc.setTextColor(0, 0, 0); 
-      doc.text('Net Difference', labelX, textY);
+      doc.text('Net Difference', equalSharesColX, textY);
+      doc.setTextColor(0, 0, 0); 
+      const currStr3 = `${primaryCurrency} `;
+      doc.text(currStr3, netAmountColX, textY);
       doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
-      doc.text(`${netSign}${primaryCurrency} ${netBalance.toFixed(2)}`, containerRightX, textY, { align: 'right' });
-      textY += 6;
+      doc.text(`${netSign}${Math.abs(netBalance).toFixed(2)}`, netAmountColX + doc.getTextWidth(currStr3), textY);
+      textY += 7;
 
-      // 4. Final Action: Bold Title + Highlighted Message Container
+      // 4. Final Action: Bold Label + Highlighted Container with Mixed Text Colors
       const titleX = 18;
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 0, 0);
-      const actionTitle = 'Final Action: ';
+      const actionTitle = 'Final Action:';
       doc.text(actionTitle, titleX, textY);
-      const actionTitleWidth = doc.getTextWidth(actionTitle);
+      
+      // Spacing after colon before badge starts
+      const actionTitleWidth = doc.getTextWidth(actionTitle) + 4; 
+      const badgeX = titleX + actionTitleWidth;
 
-      const msg = netBalance < 0
-        ? `${sampleMemberName} pays ${primaryCurrency} ${Math.abs(netBalance).toFixed(2)} directly to ${targetReceiverName}`
-        : `${sampleMemberName} receives ${primaryCurrency} ${netBalance.toFixed(2)} in total settlement`;
+      // Construct message parts
+      let part1 = '';
+      let part2Amount = '';
+      let part3 = '';
+
+      if (netBalance < 0) {
+        part1 = `${sampleMemberName} pays `;
+        part2Amount = `${primaryCurrency} ${Math.abs(netBalance).toFixed(2)}`;
+        part3 = ` directly to ${targetReceiverName}`;
+      } else {
+        part1 = `${sampleMemberName} receives `;
+        part2Amount = `${primaryCurrency} ${netBalance.toFixed(2)}`;
+        part3 = ` in total settlement`;
+      }
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      const msgWidth = doc.getTextWidth(msg);
-      const msgX = titleX + actionTitleWidth;
 
-      // Soft Red or Soft Green styling for message badge
-      const bgFill = netBalance >= 0 ? [220, 252, 231] : [254, 226, 226]; // #DCFCE7 or #FEE2E2
-      const textColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38]; // Dark green or dark red
+      const w1 = doc.getTextWidth(part1);
+      const w2 = doc.getTextWidth(part2Amount);
+      const w3 = doc.getTextWidth(part3);
+      const totalMsgWidth = w1 + w2 + w3;
+
+      // Container styling
+      const bgFill = netBalance >= 0 ? [220, 252, 231] : [254, 226, 226]; // Soft Green or Soft Red
       const borderColor = netBalance >= 0 ? [187, 247, 208] : [254, 202, 202];
+      const amountColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38];
 
-      const boxPaddingX = 2;
+      const boxPaddingX = 2.5;
       doc.setFillColor(bgFill[0], bgFill[1], bgFill[2]);
       doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
       
-      // Draw container around ONLY the message text
+      // Draw highlighted pill container
       doc.roundedRect(
-        msgX - boxPaddingX, 
+        badgeX - boxPaddingX, 
         textY - 3.5, 
-        msgWidth + (boxPaddingX * 2), 
-        5, 
+        totalMsgWidth + (boxPaddingX * 2), 
+        5.2, 
         1, 
         1, 
         'FD'
       );
 
-      doc.setTextColor(textColor[0], textColor[1], textColor[2]);
-      doc.text(msg, msgX, textY);
+      // Render Badge Content
+      let curX = badgeX;
+
+      // Part 1: Black Text
+      doc.setTextColor(0, 0, 0);
+      doc.text(part1, curX, textY);
+      curX += w1;
+
+      // Part 2: Color-Coded Amount (Red / Green)
+      doc.setTextColor(amountColor[0], amountColor[1], amountColor[2]);
+      doc.text(part2Amount, curX, textY);
+      curX += w2;
+
+      // Part 3: Black Text
+      doc.setTextColor(0, 0, 0);
+      doc.text(part3, curX, textY);
     }
 
     currentY = currentY + boxHeight + 12;
