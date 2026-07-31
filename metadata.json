@@ -1,6 +1,7 @@
 {
-  "name": "Expense Splitter",
-  "description": "A collaborative expense splitting application with PWA support.",
+  "name": "BabySplitter",
+  "description": "Split expenses effortlessly with friends across public and private spaces. Real-time settlements, minimal transaction routing, and full transparency.
+Developed with ❤️ by benzavraar",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
