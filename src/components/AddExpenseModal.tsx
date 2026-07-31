@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { X, Plus, UserPlus } from 'lucide-react';
 
 export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
-  const { activeSpaceId, members } = useAppContext();
+  const { activeSpaceId, members, activeIdentityId, user } = useAppContext();
   
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -47,7 +47,6 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
   };
 
   const toggleParticipant = (id: string) => {
-    // If they are a payer, they cannot be deselected
     if (payers.some(p => p.memberId === id)) return;
     setParticipants(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
   };
@@ -57,7 +56,6 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
     newPayers[index][field] = value;
     setPayers(newPayers);
 
-    // If memberId changed, add to participants
     if (field === 'memberId' && value && !participants.includes(value)) {
       setParticipants(prev => [...prev, value]);
     }
@@ -90,7 +88,6 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
       return;
     }
 
-    // Check duplicates
     const payerIds = validPayers.map(p => p.memberId);
     if (new Set(payerIds).size !== payerIds.length) {
       setError('Duplicate payers are not allowed');
@@ -118,10 +115,14 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
         updatedAt: Date.now()
       });
 
+      const currentMember = members.find(m => m.id === activeIdentityId);
+      const actorName = currentMember?.name || user?.displayName || 'Someone';
+
       await addDoc(collection(db, 'notifications'), {
         spaceId: activeSpaceId,
         type: 'new_expense',
-        message: `New expense "${title}" added for ${totalAmount} ${currency}`,
+        actorName,
+        message: `added new expense "${title}" (${totalAmount} ${currency})`,
         timestamp: Date.now()
       });
 
@@ -149,7 +150,6 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
           {error && <div className="p-3 bg-red-500/20 text-red-500 text-sm rounded-xl">{error}</div>}
 
           <form id="add-expense-form" onSubmit={handleSave} className="space-y-4">
-            {/* ROW 1: Title & Date */}
             <div className="grid grid-cols-[6fr_4fr] gap-3 w-full">
               <div className="w-full min-w-0">
                 <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Expense Title</label>
@@ -161,7 +161,6 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            {/* ROW 2: Total Amount & Currency */}
             <div className="grid grid-cols-2 gap-3 w-full">
               <div className="w-full min-w-0">
                 <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Total Amount</label>
@@ -179,7 +178,6 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            {/* ROW 3 */}
             <div className="p-3 glass rounded-2xl space-y-2">
               <label className="block text-sm font-bold">Add Temporary Member</label>
               <div className="flex gap-2">
@@ -190,7 +188,6 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            {/* ROW 4 */}
             <div className="w-full min-w-0">
               <div className="flex text-xs opacity-70 font-semibold mb-1 uppercase tracking-wider pl-1">
                 <div className="flex-1 min-w-0">Paid By</div>
@@ -239,7 +236,6 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
               </button>
             </div>
 
-            {/* ROW 5 */}
             <div>
               <label className="block text-sm font-bold mb-2 pl-1">Participants</label>
               <div className="grid grid-cols-3 gap-2">
@@ -267,7 +263,6 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
           </form>
         </div>
         
-        {/* ROW 6 */}
         <div className="p-4 border-t border-white/10 bg-white/5 flex gap-3">
           <button type="button" onClick={onClose} className="flex-1 glass-button py-3">
              Cancel
