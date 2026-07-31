@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useAppContext } from '../contexts/AppContext';
-import { collection, query, where, onSnapshot, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, writeBatch, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Notification } from '../types';
 import { X, Bell, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
-// Helper to safely convert various timestamp formats
 const parseDate = (ts: any): Date => {
   if (!ts) return new Date();
   if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
@@ -35,7 +34,15 @@ export default function NotificationsModal({ onClose }: { onClose: () => void })
       q,
       (snap) => {
         const notifs: Notification[] = [];
-        snap.forEach(doc => notifs.push({ id: doc.id, ...doc.data() } as Notification));
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+          const clearedBy: string[] = data.clearedBy || [];
+
+          // 👁️ ONLY include notification if current user hasn't cleared it yet!
+          if (!clearedBy.includes(user.uid)) {
+            notifs.push({ id: docSnap.id, ...data } as Notification);
+          }
+        });
         
         notifs.sort((a, b) => {
           const timeA = parseDate(a.timestamp).getTime();
@@ -45,26 +52,28 @@ export default function NotificationsModal({ onClose }: { onClose: () => void })
 
         setNotifications(notifs.slice(0, 10));
       },
-      (err) => {
-        console.error('Notifications listener error:', err);
-      }
+      (err) => console.error('Notifications listener error:', err)
     );
     return () => unsub();
   }, [user, activeSpaceId]);
 
-  // Handler to clear/delete all notifications for this space
+  // 👤 Clear ONLY for the logged-in user
   const handleClearNotifications = async () => {
-    if (notifications.length === 0 || isClearing) return;
+    if (notifications.length === 0 || isClearing || !user) return;
     setIsClearing(true);
 
     try {
       const batch = writeBatch(db);
       notifications.forEach((n) => {
-        batch.delete(doc(db, 'notifications', n.id));
+        const ref = doc(db, 'notifications', n.id);
+        // Add current user ID to the `clearedBy` array
+        batch.update(ref, {
+          clearedBy: arrayUnion(user.uid)
+        });
       });
       await batch.commit();
     } catch (err) {
-      console.error('Failed to clear notifications:', err);
+      console.error('Failed to clear notifications for user:', err);
     } finally {
       setIsClearing(false);
     }
@@ -74,7 +83,6 @@ export default function NotificationsModal({ onClose }: { onClose: () => void })
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
       <div className="glass-panel w-full max-w-md rounded-[2rem] overflow-hidden flex flex-col max-h-[70vh]" onClick={e => e.stopPropagation()}>
         
-        {/* Modal Header */}
         <div className="p-5 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5" />
@@ -98,13 +106,11 @@ export default function NotificationsModal({ onClose }: { onClose: () => void })
           </div>
         </div>
 
-        {/* Notifications List */}
         <div className="overflow-y-auto p-4 space-y-3">
           {notifications.length === 0 ? (
             <div className="text-center p-8 text-gray-500">No notifications yet.</div>
           ) : (
             notifications.map(n => {
-              // Extract actor/user name if present on notification object
               const actor = (n as any).actorName || (n as any).userName || (n as any).createdByName;
 
               return (
