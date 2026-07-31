@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
+import { useAppContext } from '../contexts/AppContext';
 import { Expense } from '../types';
 import { X, Trash2, RefreshCcw, Pencil } from 'lucide-react';
-import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, collection, addDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import ConfirmModal from './ConfirmModal';
 import { getExpenseStatus } from '../lib/settlementUtils';
 import EditExpenseModal from './EditExpenseModal';
-
 
 interface HomeDetailModalProps {
   exp: Expense;
@@ -19,6 +19,7 @@ export default function HomeDetailModal({
   onClose,
   getMemberName,
 }: HomeDetailModalProps) {
+  const { activeSpaceId, members, activeIdentityId, user } = useAppContext();
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -32,6 +33,18 @@ export default function HomeDetailModal({
     setLoading(true);
     try {
       await deleteDoc(doc(db, 'expenses', exp.id));
+
+      const currentMember = members.find(m => m.id === activeIdentityId);
+      const actorName = currentMember?.name || user?.displayName || 'Someone';
+
+      await addDoc(collection(db, 'notifications'), {
+        spaceId: activeSpaceId,
+        type: 'expense_deleted',
+        actorName,
+        message: `deleted expense "${exp.title}"`,
+        timestamp: Date.now()
+      });
+
       setIsDeleteOpen(false);
       onClose();
     } catch (e) {
@@ -51,6 +64,18 @@ export default function HomeDetailModal({
         settledById: null,
         updatedAt: Date.now()
       });
+
+      const currentMember = members.find(m => m.id === activeIdentityId);
+      const actorName = currentMember?.name || user?.displayName || 'Someone';
+
+      await addDoc(collection(db, 'notifications'), {
+        spaceId: activeSpaceId,
+        type: 'expense_reset',
+        actorName,
+        message: `reset settlements for expense "${exp.title}"`,
+        timestamp: Date.now()
+      });
+
       setIsResetOpen(false);
       onClose();
     } catch (e) {
