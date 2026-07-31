@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
+import { useAppContext } from '../contexts/AppContext';
 import { Expense } from '../types';
 import { X, RotateCcw, CheckCircle2, Clock, UserCheck } from 'lucide-react';
 import { calculateExpenseTransactions, undoExpenseFullSettlement } from '../lib/settlementUtils';
 import ConfirmModal from './ConfirmModal';
 import { format } from 'date-fns';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 interface HistoryDetailModalProps {
   exp: Expense;
@@ -16,6 +19,7 @@ export default function HistoryDetailModal({
   onClose,
   getMemberName,
 }: HistoryDetailModalProps) {
+  const { activeSpaceId, members, activeIdentityId, user } = useAppContext();
   const [isConfirmUndoOpen, setIsConfirmUndoOpen] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
 
@@ -27,6 +31,18 @@ export default function HistoryDetailModal({
     setIsUndoing(true);
     try {
       await undoExpenseFullSettlement(exp);
+
+      const currentMember = members.find(m => m.id === activeIdentityId);
+      const actorName = currentMember?.name || user?.displayName || 'Someone';
+
+      await addDoc(collection(db, 'notifications'), {
+        spaceId: activeSpaceId,
+        type: 'settlement_undone',
+        actorName,
+        message: `undid settlement for expense "${exp.title}"`,
+        timestamp: Date.now()
+      });
+
       setIsConfirmUndoOpen(false);
       onClose();
     } catch (e) {
