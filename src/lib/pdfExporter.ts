@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Space, Member, Expense } from '../types';
-import { calculateExpenseTransactions, getExpenseStatus } from './settlementUtils';
+import { calculateExpenseTransactions, getExpenseStatus } from '../lib/settlementUtils';
 import { format } from 'date-fns';
 
 function cleanCurrencySymbol(symbol: string): string {
