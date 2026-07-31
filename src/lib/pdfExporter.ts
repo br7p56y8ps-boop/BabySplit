@@ -465,7 +465,7 @@ export async function exportSpaceDataToPDF(
       startY: textY,
       margin: { left: 18, right: 18 },
       tableWidth: pageWidth - 36,
-      head: [['Title', 'Paid', 'Should Pay/Receive', 'Net Amount']],
+      head: [['Title', 'Paid', 'Equal Shares', 'Net Amount']],
       body: tableBody,
       theme: 'grid',
       styles: { 
@@ -498,28 +498,33 @@ export async function exportSpaceDataToPDF(
     const labelX = 18;
     const valueX = 55; // Pushes the values to the right in a straight vertical line
     
-    // 1. Total Paid (Always Green)
-    doc.setTextColor(22, 163, 74); 
-    doc.text('Total Paid', labelX, textY);
-    doc.text(`${primaryCurrency} ${totalPaid.toFixed(2)}`, valueX, textY);
-    textY += 5;
-
-    // Dynamic Color: Green if receiving (+), Red if giving (-)
+    // Dynamic Color for amounts: Green if receiving (+), Red if giving (-)
     const actionColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38]; 
-    doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
 
-    // 2. Should Pay/Receive
+    // 1. Total Paid (Black label, Green amount)
+    doc.setTextColor(0, 0, 0); 
+    doc.text('Total Paid', labelX, textY);
+    doc.setTextColor(22, 163, 74); 
+    doc.text(`${primaryCurrency} ${totalPaid.toFixed(2)}`, containerRightX, textY, { align: 'right' });
+    textY += 5;
+
+    // 2. Should Pay/Receive (Black label, Dynamic amount)
+    doc.setTextColor(0, 0, 0); 
     doc.text('Should Pay/Receive', labelX, textY);
-    doc.text(`${primaryCurrency} ${totalOwed.toFixed(2)}`, valueX, textY);
+    doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
+    doc.text(`${primaryCurrency} ${totalOwed.toFixed(2)}`, containerRightX, textY, { align: 'right' });
     textY += 5;
 
-    // 3. Net Difference
+    // 3. Net Difference (Black label, Dynamic amount)
     const netSign = netBalance >= 0 ? '+' : '';
+    doc.setTextColor(0, 0, 0); 
     doc.text('Net Difference', labelX, textY);
-    doc.text(`${netSign}${primaryCurrency} ${netBalance.toFixed(2)}`, valueX, textY);
+    doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
+    doc.text(`${netSign}${primaryCurrency} ${netBalance.toFixed(2)}`, containerRightX, textY, { align: 'right' });
     textY += 5;
 
-    // 4. Final Action (Not aligned, standard sentence)
+    // 4. Final Action (Black label/text sentence)
+    doc.setTextColor(0, 0, 0);
     if (netBalance < 0) {
       doc.text(`Final Action: ${sampleMemberName} pays ${primaryCurrency} ${Math.abs(netBalance).toFixed(2)} directly to ${targetReceiverName}`, labelX, textY);
     } else {
