@@ -17,6 +17,10 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
   const [payers, setPayers] = useState<{ memberId: string, amount: string }[]>([{ memberId: '', amount: '' }]);
   const [participants, setParticipants] = useState<string[]>([]);
   
+  // NEW: Added states for transfer logic
+  const [entryType, setEntryType] = useState<'expense' | 'transfer'>('expense');
+  const [borrowerId, setBorrowerId] = useState<string>('');
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -72,7 +76,14 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || payers.length === 0 || participants.length === 0) {
+    
+    // NEW: Validation for transfer mode
+    if (entryType === 'transfer' && !borrowerId) {
+      setError('Please select who received the money');
+      return;
+    }
+
+    if (!title || payers.length === 0 || (entryType === 'expense' && participants.length === 0)) {
       setError('Please fill all required fields');
       return;
     }
@@ -96,7 +107,10 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
     
     setLoading(true);
     try {
-      const finalParticipants = Array.from(new Set([...participants, ...payerIds]));
+      // NEW: Adjust participants based on entry type
+      const finalParticipants = entryType === 'transfer' 
+        ? [borrowerId] 
+        : Array.from(new Set([...participants, ...payerIds]));
       
       const paidByMap: Record<string, number> = {};
       validPayers.forEach(p => {
@@ -111,6 +125,7 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
         paidBy: paidByMap,
         participants: finalParticipants,
         totalAmount,
+        type: entryType, // Added type tracking here
         createdAt: Date.now(),
         updatedAt: Date.now()
       });
@@ -122,7 +137,7 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
         spaceId: activeSpaceId,
         type: 'new_expense',
         actorName,
-        message: `added new expense "${title}" (${totalAmount} ${currency})`,
+        message: `added new ${entryType === 'transfer' ? 'transfer' : 'expense'} "${title}" (${totalAmount} ${currency})`,
         timestamp: Date.now()
       });
 
@@ -150,10 +165,31 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
           {error && <div className="p-3 bg-red-500/20 text-red-500 text-sm rounded-xl">{error}</div>}
 
           <form id="add-expense-form" onSubmit={handleSave} className="space-y-4">
+            
+            {/* NEW: Mode Toggle */}
+            <div className="flex bg-white/5 p-1 rounded-xl mb-2">
+              <button
+                type="button"
+                onClick={() => setEntryType('expense')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${entryType === 'expense' ? 'bg-blue-500 text-white shadow-md' : 'opacity-70 hover:opacity-100'}`}
+              >
+                Shared Expense
+              </button>
+              <button
+                type="button"
+                onClick={() => setEntryType('transfer')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${entryType === 'transfer' ? 'bg-blue-500 text-white shadow-md' : 'opacity-70 hover:opacity-100'}`}
+              >
+                Direct Transfer
+              </button>
+            </div>
+
             <div className="grid grid-cols-[6fr_4fr] gap-3 w-full">
               <div className="w-full min-w-0">
-                <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Expense Title</label>
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="glass-input h-[48px] !py-0 w-full min-w-0 text-sm px-3" placeholder="Dinner" required />
+                <label className="block text-xs font-medium mb-1 pl-1 opacity-70">
+                  {entryType === 'transfer' ? 'Transfer Title' : 'Expense Title'}
+                </label>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className="glass-input h-[48px] !py-0 w-full min-w-0 text-sm px-3" placeholder={entryType === 'transfer' ? 'Loan / Cash' : 'Dinner'} required />
               </div>
               <div className="w-full min-w-0">
                 <label className="block text-xs font-medium mb-1 pl-1 opacity-70">Date</label>
@@ -236,29 +272,49 @@ export default function AddExpenseModal({ onClose }: { onClose: () => void }) {
               </button>
             </div>
 
+            {/* UPDATED: Conditional Participants Section */}
             <div>
-              <label className="block text-sm font-bold mb-2 pl-1">Participants</label>
-              <div className="grid grid-cols-3 gap-2">
-                {allAvailableMembers.map(m => {
-                  const isSelected = participants.includes(m.id) || payers.some(p => p.memberId === m.id);
-                  const isPayer = payers.some(p => p.memberId === m.id);
-                  return (
-                    <label 
-                      key={m.id} 
-                      className={`flex items-center gap-1.5 p-2 rounded-xl border border-white/10 transition-all overflow-hidden ${isPayer ? 'bg-white/5 opacity-80 cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'}`}
-                    >
-                      <input 
-                        type="checkbox"
-                        className="w-4 h-4 flex-shrink-0 rounded bg-white/10 border-white/20 text-blue-500 focus:ring-blue-500/50"
-                        checked={isSelected}
-                        onChange={() => toggleParticipant(m.id)}
-                        disabled={isPayer}
-                      />
-                      <span className="text-xs font-medium truncate min-w-0">{m.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
+              <label className="block text-sm font-bold mb-2 pl-1">
+                {entryType === 'transfer' ? 'Who Received It?' : 'Participants'}
+              </label>
+              
+              {entryType === 'transfer' ? (
+                <select 
+                  value={borrowerId} 
+                  onChange={e => setBorrowerId(e.target.value)} 
+                  className="glass-input h-[48px] !py-0 w-full bg-transparent appearance-none text-sm px-3"
+                  required={entryType === 'transfer'}
+                >
+                  <option value="" disabled className="text-black">Select receiver...</option>
+                  {allAvailableMembers.map(m => (
+                    <option key={m.id} value={m.id} className="text-black" disabled={payers.some(p => p.memberId === m.id)}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {allAvailableMembers.map(m => {
+                    const isSelected = participants.includes(m.id) || payers.some(p => p.memberId === m.id);
+                    const isPayer = payers.some(p => p.memberId === m.id);
+                    return (
+                      <label 
+                        key={m.id} 
+                        className={`flex items-center gap-1.5 p-2 rounded-xl border border-white/10 transition-all overflow-hidden ${isPayer ? 'bg-white/5 opacity-80 cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'}`}
+                      >
+                        <input 
+                          type="checkbox"
+                          className="w-4 h-4 flex-shrink-0 rounded bg-white/10 border-white/20 text-blue-500 focus:ring-blue-500/50"
+                          checked={isSelected}
+                          onChange={() => toggleParticipant(m.id)}
+                          disabled={isPayer}
+                        />
+                        <span className="text-xs font-medium truncate min-w-0">{m.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </form>
         </div>
