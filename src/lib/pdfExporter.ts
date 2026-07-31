@@ -293,7 +293,7 @@ export function exportSpaceDataToPDF(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(55, 65, 81);
-  doc.text('📌 How Net Minimum Transfers are Calculated:', 18, currentY + 6);
+  doc.text('How Net Minimum Transfers are Calculated:', 18, currentY + 6);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
