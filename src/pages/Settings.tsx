@@ -22,6 +22,11 @@ export default function Settings() {
   
   const [newPin, setNewPin] = useState('');
   const [showPinChange, setShowPinChange] = useState(false);
+  
+  // NEW: State for Master Space PIN
+  const [newSpacePin, setNewSpacePin] = useState('');
+  const [showSpacePinChange, setShowSpacePinChange] = useState(false);
+  
   const [isSpaceModalOpen, setIsSpaceModalOpen] = useState(false);
   const [isDeleteSpaceOpen, setIsDeleteSpaceOpen] = useState(false);
 
@@ -103,6 +108,17 @@ export default function Settings() {
     await updateDoc(doc(db, 'members', activeMember.id), { pin: newPin });
     setNewPin('');
     setShowPinChange(false);
+    alert("Personal PIN updated successfully!");
+  };
+
+  // NEW: Function to handle changing the Master Space PIN
+  const handleChangeSpacePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSpacePin.trim() || !activeSpaceId) return;
+    await updateDoc(doc(db, 'spaces', activeSpaceId), { joinPin: newSpacePin });
+    setNewSpacePin('');
+    setShowSpacePinChange(false);
+    alert("Master Space PIN updated successfully!");
   };
 
   const confirmDeleteSpace = async () => {
@@ -152,7 +168,7 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Change Identity and Change PIN available ONLY in Public Space */}
+          {/* Dynamic PIN Logic based on Space Type */}
           {isPublic ? (
             <>
               <div className="flex gap-2">
@@ -193,8 +209,44 @@ export default function Settings() {
               )}
             </>
           ) : (
-            <div className="p-2.5 glass rounded-xl text-center text-xs opacity-70 border border-white/10">
-              Identity fixed for Private Space
+            <div className="space-y-3">
+              <div className="p-2.5 glass rounded-xl text-center text-xs opacity-70 border border-white/10">
+                Identity fixed for Private Space
+              </div>
+              
+              {/* NEW: Master Space PIN Change for Creator Only */}
+              {isCreator && (
+                <div className="pt-2 border-t border-white/10">
+                  <button 
+                    onClick={() => setShowSpacePinChange(!showSpacePinChange)} 
+                    className="w-full glass-button py-2 flex items-center justify-center gap-1.5 text-xs font-bold border border-indigo-500/30 text-indigo-400"
+                  >
+                    <KeyRound className="w-4 h-4" /> Change Master Space PIN
+                  </button>
+
+                  {showSpacePinChange && (
+                    <form onSubmit={handleChangeSpacePin} className="mt-3 p-3 glass rounded-2xl animate-in slide-in-from-top-2 border border-indigo-500/20 bg-indigo-500/5">
+                      <label className="block text-xs font-bold mb-1.5 opacity-80 text-indigo-300">New Space PIN</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="password" 
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={10} 
+                          value={newSpacePin} 
+                          onChange={e => setNewSpacePin(e.target.value)} 
+                          className="glass-input flex-1 py-1.5 px-3 text-xs" 
+                          placeholder="Enter new Space PIN" 
+                          required
+                        />
+                        <button type="submit" className="glass-button px-4 py-1.5 text-xs font-bold bg-indigo-500/20 text-indigo-400">
+                          Save
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
