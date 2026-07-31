@@ -12,7 +12,7 @@ interface SettlementModalProps {
 }
 
 export default function SettlementModal({ selectedExpenseIds, onClose }: SettlementModalProps) {
-  const { activeSpaceId, members, activeIdentityId } = useAppContext();
+  const { activeSpaceId, members, activeIdentityId, user } = useAppContext();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [settling, setSettling] = useState(false);
@@ -22,7 +22,6 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
       if (!activeSpaceId || selectedExpenseIds.length === 0) return;
       
       const exps: Expense[] = [];
-      // Fetch selected expenses
       for (const id of selectedExpenseIds) {
         const docSnap = await getDoc(doc(db, 'expenses', id));
         if (docSnap.exists()) {
@@ -45,8 +44,6 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
     );
   }
 
-  // Calculate net balances per currency
-  // Map: currency -> memberId -> amount
   const netBalances: Record<string, Record<string, number>> = {};
   let totalCalculated = 0;
 
@@ -54,20 +51,17 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
     if (!netBalances[exp.currency]) netBalances[exp.currency] = {};
     const equalShare = exp.totalAmount / exp.participants.length;
     
-    // Add amounts paid
     Object.entries(exp.paidBy).forEach(([payer, amtValue]) => {
       const amt = amtValue as number;
       netBalances[exp.currency][payer] = (netBalances[exp.currency][payer] || 0) + amt;
       totalCalculated += amt;
     });
     
-    // Subtract equal shares
     exp.participants.forEach(p => {
       netBalances[exp.currency][p] = (netBalances[exp.currency][p] || 0) - equalShare;
     });
   });
 
-  // Apply settlements already recorded on these expenses
   expenses.forEach(exp => {
     (exp.settlements || []).forEach(s => {
       const cur = s.currency || exp.currency;
@@ -77,7 +71,6 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
     });
   });
 
-  // Determine transactions
   const transactions: { currency: string, from: string, to: string, amount: number }[] = [];
   
   Object.keys(netBalances).forEach(currency => {
@@ -89,7 +82,6 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
       else if (amt > 0.01) creditors.push({ id: m, amount: amt });
     });
 
-    // Greedy matching
     debtors.sort((a,b) => b.amount - a.amount);
     creditors.sort((a,b) => b.amount - a.amount);
 
@@ -114,11 +106,14 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
         await settleExpenseAllRemaining(exp, activeIdentityId || 'system');
       }
 
-      // Notifications
+      const currentMember = members.find(m => m.id === activeIdentityId);
+      const actorName = currentMember?.name || user?.displayName || 'Someone';
+
       await addDoc(collection(db, 'notifications'), {
         spaceId: activeSpaceId,
         type: 'settlement_completed',
-        message: `Settlement completed for ${selectedExpenseIds.length} expense(s)`,
+        actorName,
+        message: `completed settlement for ${selectedExpenseIds.length} expense(s)`,
         timestamp: Date.now()
       });
 
@@ -134,7 +129,6 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
   const currencySymbol = (cur: string) => cur === 'Taka' ? '৳' : cur === 'INR' ? '₹' : '$';
   const isSingle = selectedExpenseIds.length === 1;
 
-  // Render single expense container 1
   const renderSingleSummary = () => {
     if (!isSingle) return null;
     const exp = expenses[0];
@@ -189,7 +183,6 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
     );
   };
 
-  // Render multiple expense container 1
   const renderMultiSummary = () => {
     if (isSingle) return null;
     return (
@@ -222,10 +215,8 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
             </button>
           </div>
           
-          {/* Container 1: Summary */}
           {isSingle ? renderSingleSummary() : renderMultiSummary()}
 
-          {/* Container 2: Net Transfer Breakdown */}
           <div className="p-3.5 glass rounded-2xl space-y-2">
             <h3 className="text-[11px] font-bold uppercase tracking-wider opacity-70">Net Transfer Breakdown</h3>
             {transactions.length === 0 ? (
@@ -250,7 +241,6 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
             )}
           </div>
           
-          {/* Container 3: Informational Note */}
           <div className="p-3 glass rounded-2xl text-[11px] font-medium opacity-80 leading-snug text-center">
             {isSingle ? (
               "Transfers are minimized by offsetting debts and credits between members to require the fewest transactions."
@@ -260,7 +250,6 @@ export default function SettlementModal({ selectedExpenseIds, onClose }: Settlem
           </div>
         </div>
         
-        {/* Container 4: Bottom Action Area */}
         {transactions.length > 0 ? (
           <div className="p-3.5 border-t border-white/10 bg-white/5 flex gap-2.5">
             <button onClick={onClose} className="flex-1 glass-button py-2 text-xs font-bold">Cancel</button>
