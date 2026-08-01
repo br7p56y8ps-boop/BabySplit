@@ -282,7 +282,7 @@ export async function exportSpaceDataToPDF(
     currentY += 5;
 
     const itemizedTxRows: any[] = [];
-    const expenseCardBoundaries: number[] = []; // Tracks start indices of new expense cards
+    const expenseCardBoundaries: number[] = [];
 
     filteredExpenses.forEach(exp => {
       const txs = calculateExpenseTransactions(exp);
@@ -334,7 +334,6 @@ export async function exportSpaceDataToPDF(
           const rowIndex = data.row.index;
           const isCardHeaderRow = expenseCardBoundaries.includes(rowIndex);
 
-          // Subtle top padding gap before starting a new expense card
           if (isCardHeaderRow && rowIndex > 0) {
             data.cell.styles.cellPadding = { top: 4.5, bottom: 2.5, left: 2.5, right: 2.5 };
           }
@@ -365,10 +364,6 @@ export async function exportSpaceDataToPDF(
 
     // 8. Net Minimum Transfer Flow OR "All Expenses Settled" Container
     if (activeExpensesOnly.length === 0) {
-      // -------------------------------------------------------------
-      // SCENARIO A: ALL EXPENSES SETTLED
-      // Renders the box container and goes DIRECTLY to "End of Report"
-      // -------------------------------------------------------------
       if (currentY > 220) {
         doc.addPage();
         currentY = 15;
@@ -409,10 +404,6 @@ export async function exportSpaceDataToPDF(
       currentY = startYBox + boxInnerHeight + 20;
 
     } else {
-      // -------------------------------------------------------------
-      // SCENARIO B: ACTIVE EXPENSES EXIST
-      // Renders Net Minimum Transfer Flow & Audit Calculations
-      // -------------------------------------------------------------
       if (currentY > 190) {
         doc.addPage();
         currentY = 15;
@@ -421,7 +412,6 @@ export async function exportSpaceDataToPDF(
       renderHeading('Net Minimum Transfer Flow', 14, currentY);
       currentY += 5;
 
-      // Explanatory Transparency Note
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
@@ -465,16 +455,17 @@ export async function exportSpaceDataToPDF(
 
       currentY = (doc as any).lastAutoTable.finalY + 16;
 
-      // --- AUDIT SECTION (Only rendered when there are unsettled cards) ---
-      const sampleMemberId = calculateNetTransfers(activeExpensesOnly, members)[0]?.from || members[0]?.id;
+      // --- AUDIT SECTION (Evaluates ONLY ACTIVE UNSETTLED EXPENSES) ---
+      const sampleMemberId = activeNetTxs?.[0]?.from || members[0]?.id;
       const sampleMemberName = getMemberName(sampleMemberId);
 
       let totalPaid = 0;
       let totalOwed = 0;
       const tableBodyRaw: Array<{ title: string; currSym: string; paid: number; share: number; netExp: number }> = [];
-      const primaryCurrency = getCurrencySymbol(filteredExpenses[0]?.currency || '');
+      const primaryCurrency = getCurrencySymbol(activeExpensesOnly[0]?.currency || '');
 
-      filteredExpenses.forEach(exp => {
+      // Loop over activeExpensesOnly so fully settled expenses are excluded here too!
+      activeExpensesOnly.forEach(exp => {
         const currSym = getCurrencySymbol(exp.currency);
         const paid = exp.paidBy?.[sampleMemberId] || 0;
         const isParticipant = exp.participants?.includes(sampleMemberId);
@@ -497,7 +488,6 @@ export async function exportSpaceDataToPDF(
       });
 
       const netBalance = totalPaid - totalOwed;
-      const activeNetTxs = calculateNetTransfers(activeExpensesOnly, members);
       const finalTransferTarget = activeNetTxs.find((t: any) => t.from === sampleMemberId);
       const targetReceiverName = finalTransferTarget 
         ? (finalTransferTarget.toName || getMemberName(finalTransferTarget.to)) 
