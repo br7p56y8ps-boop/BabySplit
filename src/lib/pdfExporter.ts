@@ -6,13 +6,12 @@ import {
   getExpenseStatus, 
   calculateNetTransfers, 
   isTransactionSettled 
-} from '../lib/settlementUtils';
+} from './settlementUtils';
 import { format } from 'date-fns';
 
 /**
  * Returns plain text currency codes.
  * Standard jsPDF fonts do not support Unicode symbols (৳, ₹, €, £).
- * Using text prevents gibberish characters in the exported PDF.
  */
 function getCurrencySymbol(symbol: string): string {
   if (!symbol) return 'USD';
@@ -54,7 +53,7 @@ export async function exportSpaceDataToPDF(
 
     let currentY = 12;
 
-    // 1. App Icon Header (Size 26, 3 line breaks space after)
+    // 1. App Icon Header
     try {
       const iconImg = await loadImage('/icon-512.png');
       if (iconImg) {
@@ -66,13 +65,13 @@ export async function exportSpaceDataToPDF(
         doc.setDrawColor(0, 0, 0);
         doc.rect(iconX, currentY, iconSize, iconSize); // Black border
         
-        currentY += iconSize + 12; // 3 line breaks spacing after icon
+        currentY += iconSize + 12;
       }
     } catch (e) {
       // Fallback gracefully if image path is not found
     }
 
-    // 2. Main Title: BabySplit (Font Size 26)
+    // 2. Main Title: BabySplit
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(26);
     doc.setTextColor(26, 54, 93); // Navy Blue
@@ -82,14 +81,14 @@ export async function exportSpaceDataToPDF(
     // 3. Subtitle / App Description
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(8.5);
-    doc.setTextColor(100, 116, 139); // Grey
+    doc.setTextColor(100, 116, 139);
     const descText = 'App that Split expenses effortlessly across public and private spaces. Real-time settlements, minimal transaction routing, and full transparency.';
     const splitDesc = doc.splitTextToSize(descText, pageWidth - 40);
     doc.text(splitDesc, pageWidth / 2, currentY, { align: 'center' });
     
-    currentY += splitDesc.length * 4.5 + 20; // 5 line breaks spacing after description
+    currentY += splitDesc.length * 4.5 + 20;
 
-    // 4. Report Tag (Increased font size 20, with light Navy Blue / Yellow Container)
+    // 4. Report Tag Container
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
     const reportText = 'Report';
@@ -100,17 +99,15 @@ export async function exportSpaceDataToPDF(
     const boxY = currentY - 7.5;
     const boxW = reportWidth + (boxPaddingX * 2);
 
-    // Light Yellow Fill with Soft Navy Border
     doc.setFillColor(254, 249, 195); // Soft Light Yellow
     doc.setDrawColor(26, 54, 93);    // Navy Blue Border
     doc.setLineWidth(0.6);
     doc.roundedRect(boxX, boxY, boxW, boxHeight + 2, 2, 2, 'FD');
 
-    // Navy Blue Report Text
     doc.setTextColor(26, 54, 93);
     doc.text(reportText, pageWidth / 2, currentY, { align: 'center' });
 
-    currentY += 22; // 5 line breaks spacing after Report tag
+    currentY += 22;
 
     // Helper for Section Headings
     const renderHeading = (title: string, xPos: number, yPos: number) => {
@@ -124,11 +121,11 @@ export async function exportSpaceDataToPDF(
       doc.line(xPos, yPos + 1, xPos + textWidth, yPos + 1);
     };
 
-    // 5. Side-by-Side Tables: Space Information & Space Members
+    // 5. Side-by-Side Tables: Space Info & Space Members
     renderHeading('Space Information', 14, currentY);
     renderHeading('Space Members', 108, currentY);
 
-    currentY += 5; // Tight gap between heading and table content
+    currentY += 5;
 
     const memberNames = members.map(m => m.name);
     const membersGridBody: string[][] = [];
@@ -164,9 +161,9 @@ export async function exportSpaceDataToPDF(
       styles: { fontSize: 8.5, cellPadding: 2.5, halign: 'center' },
     });
 
-    // Space after section content before next heading
     currentY = Math.max((doc as any).lastAutoTable.finalY, currentY + 32) + 18;
 
+    // Filter expenses based on selection
     const filteredExpenses = expenses.filter(exp => {
       const status = getExpenseStatus(exp);
       if (filter === 'settled') return status === 'Fully Settled';
@@ -174,7 +171,7 @@ export async function exportSpaceDataToPDF(
       return true;
     });
 
-    // 6. Expense Overview Table
+    // 6. Expense Overview Table (Includes Settled & Partially Settled Cards)
     if (currentY > 210) {
       doc.addPage();
       currentY = 15;
@@ -188,7 +185,7 @@ export async function exportSpaceDataToPDF(
         : 'Expense Overview';
 
     renderHeading(overviewTitle, 14, currentY);
-    currentY += 5; // Tight gap between heading and table content
+    currentY += 5;
 
     const expensesBody = filteredExpenses.map(exp => {
       const dateStr = exp.date ? format(new Date(exp.date), 'dd/MM/yyyy') : '-';
@@ -259,26 +256,21 @@ export async function exportSpaceDataToPDF(
         6: { cellWidth: 18 },
         7: { cellWidth: 21 },
       },
+      // Whole Row Highlighting for Settled/Partial status
       didParseCell: (data) => {
-        if (data.section === 'body' && data.row.raw) {
-          const statusVal = data.row.raw[6];
-          if (data.column.index === 6) {
-            if (statusVal === 'Fully Settled') {
-              data.cell.styles.textColor = [22, 163, 74];
-              data.cell.styles.fontStyle = 'bold';
-            } else if (statusVal === 'Unsettled') {
-              data.cell.styles.textColor = [220, 38, 38];
-              data.cell.styles.fontStyle = 'bold';
-            } else if (statusVal === 'Partially Settled') {
-              data.cell.styles.textColor = [217, 119, 6];
-              data.cell.styles.fontStyle = 'bold';
-            }
+        if (data.section === 'body' && filteredExpenses[data.row.index]) {
+          const exp = filteredExpenses[data.row.index];
+          const status = getExpenseStatus(exp);
+
+          if (status === 'Fully Settled') {
+            data.cell.styles.fillColor = [236, 253, 245]; // Soft Emerald Fill
+          } else if (status === 'Partially Settled') {
+            data.cell.styles.fillColor = [254, 243, 199]; // Soft Amber Fill
           }
         }
       },
     });
 
-    // Space after section content before next heading
     currentY = (doc as any).lastAutoTable.finalY + 18;
 
     // 7. Itemized Expense Payment Flow
@@ -288,7 +280,7 @@ export async function exportSpaceDataToPDF(
     }
 
     renderHeading('Itemized Expense Payment Flow', 14, currentY);
-    currentY += 5; // Tight gap between heading and table content
+    currentY += 5;
 
     const itemizedTxRows: any[] = [];
     filteredExpenses.forEach(exp => {
@@ -337,10 +329,15 @@ export async function exportSpaceDataToPDF(
       styles: { fontSize: 8.5, cellPadding: 2.5 },
       didParseCell: (data) => {
         if (data.section === 'body') {
+          const rawRow = data.row.raw as any[];
+          const flowStatusCell = rawRow[rawRow.length - 1]; 
+          
+          // Whole row background for settled transactions
+          if (flowStatusCell === 'Settled') {
+            data.cell.styles.fillColor = [240, 253, 244];
+          }
+
           if (data.column.index === 3 || data.column.index === 4) {
-            const rawRow = data.row.raw as any[];
-            const flowStatusCell = rawRow[rawRow.length - 1]; 
-            
             data.cell.styles.fontStyle = 'bold';
             if (flowStatusCell === 'Settled') {
               data.cell.styles.textColor = [22, 163, 74];
@@ -352,59 +349,150 @@ export async function exportSpaceDataToPDF(
       },
     });
 
-    // Space after section content before next heading
     currentY = (doc as any).lastAutoTable.finalY + 18;
 
-    // 8. Net Minimum Transfer Flow
+    // Filter Active (Unsettled) expenses specifically for Net Minimum Calculations
+    const activeExpensesOnly = filteredExpenses.filter(exp => getExpenseStatus(exp) !== 'Fully Settled');
+
+    // 8. Net Minimum Transfer Flow OR "All Expenses Settled" Container
     if (currentY > 190) {
       doc.addPage();
       currentY = 15;
     }
 
-    renderHeading('Net Minimum Transfer Flow', 14, currentY);
-    currentY += 5; // Tight gap between heading and table content
+    if (activeExpensesOnly.length === 0) {
+      // -------------------------------------------------------------
+      // SCENARIO A: NO ACTIVE EXPENSES LEFT
+      // Render broad container with dynamic tight height + zero extra padding
+      // -------------------------------------------------------------
+      const boxX = 14;
+      const boxWidth = pageWidth - 28;
+      const startYBox = currentY;
 
-    const netTransfers = calculateNetTransfers 
-      ? calculateNetTransfers(filteredExpenses, members) 
-      : [];
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(6, 95, 70);
+      const titleText = 'All Expenses Settled!';
 
-    if (netTransfers.length === 0) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      const descLines = doc.splitTextToSize(
+        'There are no active expenses remaining to settle in this view. All accounts within this selection are fully balanced and settled.',
+        boxWidth - 16
+      );
+
+      // Measure height exactly: Title + spacing + Description lines + 1 line break padding
+      const boxInnerHeight = 8 + 5 + (descLines.length * 4.5) + 4; 
+
+      // Draw Container Rect
+      doc.setDrawColor(16, 185, 129);
+      doc.setFillColor(236, 253, 245);
+      doc.roundedRect(boxX, startYBox, boxWidth, boxInnerHeight, 3, 3, 'FD');
+
+      // Draw Text Inside Box
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(6, 95, 70);
+      doc.text(titleText, boxX + 8, startYBox + 8);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(15, 118, 110);
+      doc.text(descLines, boxX + 8, startYBox + 14);
+
+      currentY = startYBox + boxInnerHeight + 16;
+
+      renderHeading('Settled Transaction Flows', 14, currentY);
+      currentY += 5;
+
+      const settledTxsBody: string[][] = [];
+      filteredExpenses.forEach(exp => {
+        const txs = calculateExpenseTransactions(exp);
+        const currSymbol = getCurrencySymbol(exp.currency);
+        txs.forEach(tx => {
+          settledTxsBody.push([
+            exp.title,
+            getMemberName(tx.from),
+            getMemberName(tx.to),
+            `${currSymbol} ${tx.amount.toFixed(2)}`,
+            'Settled'
+          ]);
+        });
+      });
+
       autoTable(doc, {
         startY: currentY,
-        head: ['Settlement Status'],
-        body: [['All member balances are fully settled! No transfers required.']],
-        theme: 'plain',
-        styles: { fontSize: 9, fontStyle: 'bold', textColor: [22, 163, 74] },
+        head: [['Expense Title', 'From', 'To', 'Amount', 'Status']],
+        body: settledTxsBody.length > 0 ? settledTxsBody : [['-', '-', '-', '-', 'Fully Settled']],
+        theme: 'grid',
+        headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            data.cell.styles.fillColor = [240, 253, 244];
+          }
+        }
       });
+
     } else {
+      // -------------------------------------------------------------
+      // SCENARIO B: ACTIVE EXPENSES EXIST
+      // Calculate net transfers ONLY on active expenses
+      // -------------------------------------------------------------
+      renderHeading('Net Minimum Transfer Flow', 14, currentY);
+      currentY += 5;
+
+      // Explanatory Transparency Note
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      const noteStr = "Note: Other flow sections above are provided for full transparency. Transactions should be completed according to the Net Minimum Transfer Flow table below if you wish to reduce the total number of transfers.";
+      const splitNote = doc.splitTextToSize(noteStr, pageWidth - 28);
+      doc.text(splitNote, 14, currentY);
+
+      currentY += (splitNote.length * 4) + 4;
+
+      const netTransfers = calculateNetTransfers 
+        ? calculateNetTransfers(activeExpensesOnly, members) 
+        : [];
+
       const netRows = netTransfers.map((t: any) => {
         const fromName = t.fromName || getMemberName(t.from);
         const toName = t.toName || getMemberName(t.to);
         const sym = getCurrencySymbol(t.currency || '');
-        return [fromName, toName, `${sym} ${t.amount.toFixed(2)}` ];
+        return [fromName, toName, `${sym} ${t.amount.toFixed(2)}`, 'Pending Action'];
       });
 
       autoTable(doc, {
         startY: currentY,
-        head: [['From (Payer)', 'To (Receiver)', 'Net Transfer Amount']],
-        body: netRows,
-        theme: 'striped',
+        head: [['From (Payer)', 'To (Receiver)', 'Net Transfer Amount', 'Status']],
+        body: netRows.length > 0 ? netRows : [['-', '-', 'No net transfers required', 'Balanced']],
+        theme: 'grid',
         headStyles: { fillColor: [234, 88, 12], textColor: 255, fontStyle: 'bold' },
-        styles: { fontSize: 9, cellPadding: 3 },
-        didParseCell: (data) => {
-          if (data.section === 'body' && data.column.index === 2) {
-            data.cell.styles.textColor = [220, 38, 38];
-            data.cell.styles.fontStyle = 'bold';
-          }
+        // Fully Highlighted Net Table Cells
+        styles: { 
+          fontSize: 9, 
+          cellPadding: 3, 
+          fontStyle: 'bold',
+          fillColor: [254, 243, 199], // Soft Amber Highlight
+          textColor: [120, 53, 15] 
+        },
+        columnStyles: {
+          0: { cellWidth: 45 },
+          1: { cellWidth: 45 },
+          2: { cellWidth: 50 },
+          3: { cellWidth: 42 },
         },
       });
     }
 
-    // Space after section content before next block
-    currentY = (doc as any).lastAutoTable.finalY + 16;
+    currentY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 16 : currentY + 16;
 
-    // --- 9. UNIFORM TABLE & SPACED EXAMPLE AUDIT ---
-    const sampleMemberId = netTransfers.length > 0 ? netTransfers[0].from : members[0]?.id;
+    // --- 9. UNIFORM TABLE & AUDIT EXAMPLE ---
+    const sampleMemberId = activeExpensesOnly.length > 0 && calculateNetTransfers
+      ? calculateNetTransfers(activeExpensesOnly, members)[0]?.from || members[0]?.id
+      : members[0]?.id;
+
     const sampleMemberName = getMemberName(sampleMemberId);
 
     let totalPaid = 0;
@@ -412,7 +500,6 @@ export async function exportSpaceDataToPDF(
     const tableBodyRaw: Array<{ title: string; currSym: string; paid: number; share: number; netExp: number }> = [];
     const primaryCurrency = getCurrencySymbol(filteredExpenses[0]?.currency || '');
 
-    // Build Table Data
     filteredExpenses.forEach(exp => {
       const currSym = getCurrencySymbol(exp.currency);
       const paid = exp.paidBy?.[sampleMemberId] || 0;
@@ -436,16 +523,16 @@ export async function exportSpaceDataToPDF(
     });
 
     const netBalance = totalPaid - totalOwed;
-    const finalTransferTarget = netTransfers.find((t: any) => t.from === sampleMemberId);
+    const activeNetTxs = calculateNetTransfers ? calculateNetTransfers(activeExpensesOnly, members) : [];
+    const finalTransferTarget = activeNetTxs.find((t: any) => t.from === sampleMemberId);
     const targetReceiverName = finalTransferTarget 
       ? (finalTransferTarget.toName || getMemberName(finalTransferTarget.to)) 
       : 'Receiver';
 
-    // Settings for the custom ordered list
     const pointLineHeight = 3.5;
     const pointGap = 4;
-    const pointIndent = 5; // Creates the uniform hanging indent for multi-line strings
-    const textMaxWidth = pageWidth - 36; // Full width minus page margins
+    const pointIndent = 5;
+    const textMaxWidth = pageWidth - 36;
 
     const points = [
       {
@@ -462,11 +549,10 @@ export async function exportSpaceDataToPDF(
       }
     ];
 
-    // Helper to calculate wrapping and render text uniformly (inline bold title + normal description + indent)
     const processPoint = (point: {title: string, desc: string}, startY: number, draw: boolean = false) => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      if (draw) doc.setTextColor(107, 114, 128); // Standard Grey
+      if (draw) doc.setTextColor(107, 114, 128);
       
       const titleWidth = doc.getTextWidth(point.title);
       if (draw) doc.text(point.title, 18, startY);
@@ -474,9 +560,9 @@ export async function exportSpaceDataToPDF(
       doc.setFont('helvetica', 'normal');
       const words = point.desc.split(' ');
       let currentLine = '';
-      let currentX = 18 + titleWidth; // Start description exactly after title
+      let currentX = 18 + titleWidth;
       let currentY = startY;
-      let lineLimit = textMaxWidth - titleWidth; // Limit for first line
+      let lineLimit = textMaxWidth - titleWidth;
 
       for (let word of words) {
         const testLine = currentLine + (currentLine ? ' ' : '') + word;
@@ -484,10 +570,10 @@ export async function exportSpaceDataToPDF(
         
         if (testWidth > lineLimit) {
           if (draw) doc.text(currentLine, currentX, currentY);
-          currentY += pointLineHeight; // Move to next line
-          currentX = 18 + pointIndent; // Apply hanging indent!
+          currentY += pointLineHeight;
+          currentX = 18 + pointIndent;
           currentLine = word;
-          lineLimit = textMaxWidth - pointIndent; // Limit for subsequent lines
+          lineLimit = textMaxWidth - pointIndent;
         } else {
           currentLine = testLine;
         }
@@ -495,15 +581,14 @@ export async function exportSpaceDataToPDF(
       if (currentLine) {
         if (draw) doc.text(currentLine, currentX, currentY);
       }
-      return currentY; // Return Y position of the last line drawn
+      return currentY;
     };
 
-    // Calculate Box Height dynamically based on exact wrapped text rendering heights
     let mockY = currentY + 7;
-    mockY += pointLineHeight + 5; // Move past Main Title position
+    mockY += pointLineHeight + 5;
     for (let i = 0; i < points.length; i++) {
       const lastLineY = processPoint(points[i], mockY, false);
-      mockY = lastLineY + pointLineHeight + pointGap; // Advance to next point
+      mockY = lastLineY + pointLineHeight + pointGap;
     }
     
     const topBoxPortion = mockY - currentY;
@@ -526,27 +611,24 @@ export async function exportSpaceDataToPDF(
 
     let textY = currentY + 7;
 
-    // Draw Main Title (Bold, Italic, Underlined, Dark Blue)
     doc.setFont('helvetica', 'bolditalic');
     doc.setFontSize(8);
-    doc.setTextColor(26, 54, 93); // Dark Blue
+    doc.setTextColor(26, 54, 93);
     const mainTitle = 'How Net Minimum Transfers are Calculated:';
     doc.text(mainTitle, 18, textY);
     
     const mtWidth = doc.getTextWidth(mainTitle);
     doc.setLineWidth(0.3);
     doc.setDrawColor(26, 54, 93);
-    doc.line(18, textY + 1.2, 18 + mtWidth, textY + 1.2); // Manual Underline
+    doc.line(18, textY + 1.2, 18 + mtWidth, textY + 1.2);
     
     textY += pointLineHeight + 5;
 
-    // Actually Draw Points
     for (let i = 0; i < points.length; i++) {
       const lastLineY = processPoint(points[i], textY, true);
       textY = lastLineY + pointLineHeight + pointGap;
     }
 
-    // Add Inner Table with custom colored cell rendering
     if (tableBodyRaw.length > 0) {
       const tableBodyForAutoTable = tableBodyRaw.map(r => [
         r.title,
@@ -589,28 +671,26 @@ export async function exportSpaceDataToPDF(
             const textYPos = data.cell.y + (data.cell.height / 2) + 1;
             const textXPos = data.cell.x + 2;
 
-            // Paid Column Custom Formatting
             if (data.column.index === 1) {
               doc.setFont('helvetica', 'normal');
               doc.setFontSize(8);
-              doc.setTextColor(107, 114, 128); // Grey Currency
+              doc.setTextColor(107, 114, 128);
               const currText = `${rowData.currSym} `;
               doc.text(currText, textXPos, textYPos);
 
               const currWidth = doc.getTextWidth(currText);
               if (rowData.paid > 0) {
-                doc.setTextColor(22, 163, 74); // Green if paid > 0
+                doc.setTextColor(22, 163, 74);
               } else {
-                doc.setTextColor(107, 114, 128); // Grey if 0
+                doc.setTextColor(107, 114, 128);
               }
               doc.text(rowData.paid.toFixed(2), textXPos + currWidth, textYPos);
             }
 
-            // Net Amount Column Custom Formatting
             if (data.column.index === 3) {
               doc.setFont('helvetica', 'normal');
               doc.setFontSize(8);
-              doc.setTextColor(107, 114, 128); // Grey Currency
+              doc.setTextColor(107, 114, 128);
               const currText = `${rowData.currSym} `;
               doc.text(currText, textXPos, textYPos);
 
@@ -619,9 +699,9 @@ export async function exportSpaceDataToPDF(
               const amtValStr = `${sign}${Math.abs(rowData.netExp).toFixed(2)}`;
 
               if (rowData.netExp >= 0) {
-                doc.setTextColor(22, 163, 74); // Green for positive
+                doc.setTextColor(22, 163, 74);
               } else {
-                doc.setTextColor(220, 38, 38); // Red for negative
+                doc.setTextColor(220, 38, 38);
               }
               doc.text(amtValStr, textXPos + currWidth, textYPos);
             }
@@ -631,12 +711,11 @@ export async function exportSpaceDataToPDF(
 
       textY = (doc as any).lastAutoTable.finalY + 7;
 
-      // --- Bottom Summary Lines (Aligned with Equal Shares & Net Amount Columns) ---
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       
-      const equalSharesColX = pageWidth - 88; // Aligns with Equal Shares column
-      const netAmountColX = pageWidth - 53;   // Aligns with Net Amount column
+      const equalSharesColX = pageWidth - 88;
+      const netAmountColX = pageWidth - 53;
       const actionColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38]; 
 
       // 1. Total Paid
@@ -670,7 +749,7 @@ export async function exportSpaceDataToPDF(
       doc.text(`${netSign}${Math.abs(netBalance).toFixed(2)}`, netAmountColX + doc.getTextWidth(currStr3), textY);
       textY += 7;
 
-      // 4. Final Action: Bold Label + Highlighted Container with Mixed Text Colors
+      // 4. Final Action
       const titleX = 18;
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 0, 0);
@@ -710,7 +789,6 @@ export async function exportSpaceDataToPDF(
       doc.setFillColor(bgFill[0], bgFill[1], bgFill[2]);
       doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
       
-      // Draw highlighted pill container
       doc.roundedRect(
         badgeX - pPaddingX, 
         textY - 3.5, 
@@ -721,20 +799,15 @@ export async function exportSpaceDataToPDF(
         'FD'
       );
 
-      // Render Badge Content
       let curX = badgeX;
-
-      // Part 1: Black Text
       doc.setTextColor(0, 0, 0);
       doc.text(part1, curX, textY);
       curX += w1;
 
-      // Part 2: Color-Coded Amount (Red / Green)
       doc.setTextColor(amountColor[0], amountColor[1], amountColor[2]);
       doc.text(part2Amount, curX, textY);
       curX += w2;
 
-      // Part 3: Black Text
       doc.setTextColor(0, 0, 0);
       doc.text(part3, curX, textY);
     }
@@ -765,7 +838,6 @@ export async function exportSpaceDataToPDF(
       );
     }
 
-    // Save file with clean name
     const safeSpaceName = space.name.replace(/[^a-zA-Z0-9]/g, '_');
     const fileName = `BabySplit_${safeSpaceName}_${filter}_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`;
     doc.save(fileName);
