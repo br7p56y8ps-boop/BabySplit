@@ -63,7 +63,7 @@ export async function exportSpaceDataToPDF(
         doc.addImage(iconImg, 'PNG', iconX, currentY, iconSize, iconSize);
         doc.setLineWidth(0.5);
         doc.setDrawColor(0, 0, 0);
-        doc.rect(iconX, currentY, iconSize, iconSize); // Black border
+        doc.rect(iconX, currentY, iconSize, iconSize);
         
         currentY += iconSize + 12;
       }
@@ -99,8 +99,8 @@ export async function exportSpaceDataToPDF(
     const boxY = currentY - 7.5;
     const boxW = reportWidth + (boxPaddingX * 2);
 
-    doc.setFillColor(254, 249, 195); // Soft Light Yellow
-    doc.setDrawColor(26, 54, 93);    // Navy Blue Border
+    doc.setFillColor(254, 249, 195);
+    doc.setDrawColor(26, 54, 93);
     doc.setLineWidth(0.6);
     doc.roundedRect(boxX, boxY, boxW, boxHeight + 2, 2, 2, 'FD');
 
@@ -171,7 +171,7 @@ export async function exportSpaceDataToPDF(
       return true;
     });
 
-    // 6. Expense Overview Table (Includes Settled & Partially Settled Cards)
+    // 6. Expense Overview Table
     if (currentY > 210) {
       doc.addPage();
       currentY = 15;
@@ -256,16 +256,15 @@ export async function exportSpaceDataToPDF(
         6: { cellWidth: 18 },
         7: { cellWidth: 21 },
       },
-      // Whole Row Highlighting for Settled/Partial status
       didParseCell: (data) => {
         if (data.section === 'body' && filteredExpenses[data.row.index]) {
           const exp = filteredExpenses[data.row.index];
           const status = getExpenseStatus(exp);
 
           if (status === 'Fully Settled') {
-            data.cell.styles.fillColor = [236, 253, 245]; // Soft Emerald Fill
+            data.cell.styles.fillColor = [236, 253, 245];
           } else if (status === 'Partially Settled') {
-            data.cell.styles.fillColor = [254, 243, 199]; // Soft Amber Fill
+            data.cell.styles.fillColor = [254, 243, 199];
           }
         }
       },
@@ -273,7 +272,7 @@ export async function exportSpaceDataToPDF(
 
     currentY = (doc as any).lastAutoTable.finalY + 18;
 
-    // 7. Itemized Expense Payment Flow
+    // 7. Itemized Expense Payment Flow with Card Separation Gaps
     if (currentY > 210) {
       doc.addPage();
       currentY = 15;
@@ -283,9 +282,12 @@ export async function exportSpaceDataToPDF(
     currentY += 5;
 
     const itemizedTxRows: any[] = [];
+    const expenseCardBoundaries: number[] = []; // Tracks start indices of new expense cards
+
     filteredExpenses.forEach(exp => {
       const txs = calculateExpenseTransactions(exp);
       const currencySym = getCurrencySymbol(exp.currency);
+      expenseCardBoundaries.push(itemizedTxRows.length);
 
       if (txs.length === 0) {
         const expStatus = getExpenseStatus(exp);
@@ -329,10 +331,17 @@ export async function exportSpaceDataToPDF(
       styles: { fontSize: 8.5, cellPadding: 2.5 },
       didParseCell: (data) => {
         if (data.section === 'body') {
+          const rowIndex = data.row.index;
+          const isCardHeaderRow = expenseCardBoundaries.includes(rowIndex);
+
+          // Subtle top padding gap before starting a new expense card
+          if (isCardHeaderRow && rowIndex > 0) {
+            data.cell.styles.cellPadding = { top: 4.5, bottom: 2.5, left: 2.5, right: 2.5 };
+          }
+
           const rawRow = data.row.raw as any[];
           const flowStatusCell = rawRow[rawRow.length - 1]; 
           
-          // Whole row background for settled transactions
           if (flowStatusCell === 'Settled') {
             data.cell.styles.fillColor = [240, 253, 244];
           }
@@ -355,16 +364,16 @@ export async function exportSpaceDataToPDF(
     const activeExpensesOnly = filteredExpenses.filter(exp => getExpenseStatus(exp) !== 'Fully Settled');
 
     // 8. Net Minimum Transfer Flow OR "All Expenses Settled" Container
-    if (currentY > 190) {
-      doc.addPage();
-      currentY = 15;
-    }
-
     if (activeExpensesOnly.length === 0) {
       // -------------------------------------------------------------
-      // SCENARIO A: NO ACTIVE EXPENSES LEFT
-      // Render broad container with dynamic tight height + zero extra padding
+      // SCENARIO A: ALL EXPENSES SETTLED
+      // Renders the box container and goes DIRECTLY to "End of Report"
       // -------------------------------------------------------------
+      if (currentY > 220) {
+        doc.addPage();
+        currentY = 15;
+      }
+
       const boxX = 14;
       const boxWidth = pageWidth - 28;
       const startYBox = currentY;
@@ -381,15 +390,12 @@ export async function exportSpaceDataToPDF(
         boxWidth - 16
       );
 
-      // Measure height exactly: Title + spacing + Description lines + 1 line break padding
       const boxInnerHeight = 8 + 5 + (descLines.length * 4.5) + 4; 
 
-      // Draw Container Rect
       doc.setDrawColor(16, 185, 129);
       doc.setFillColor(236, 253, 245);
       doc.roundedRect(boxX, startYBox, boxWidth, boxInnerHeight, 3, 3, 'FD');
 
-      // Draw Text Inside Box
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(6, 95, 70);
@@ -400,45 +406,18 @@ export async function exportSpaceDataToPDF(
       doc.setTextColor(15, 118, 110);
       doc.text(descLines, boxX + 8, startYBox + 14);
 
-      currentY = startYBox + boxInnerHeight + 16;
-
-      renderHeading('Settled Transaction Flows', 14, currentY);
-      currentY += 5;
-
-      const settledTxsBody: string[][] = [];
-      filteredExpenses.forEach(exp => {
-        const txs = calculateExpenseTransactions(exp);
-        const currSymbol = getCurrencySymbol(exp.currency);
-        txs.forEach(tx => {
-          settledTxsBody.push([
-            exp.title,
-            getMemberName(tx.from),
-            getMemberName(tx.to),
-            `${currSymbol} ${tx.amount.toFixed(2)}`,
-            'Settled'
-          ]);
-        });
-      });
-
-      autoTable(doc, {
-        startY: currentY,
-        head: [['Expense Title', 'From', 'To', 'Amount', 'Status']],
-        body: settledTxsBody.length > 0 ? settledTxsBody : [['-', '-', '-', '-', 'Fully Settled']],
-        theme: 'grid',
-        headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-        styles: { fontSize: 8.5, cellPadding: 2.5 },
-        didParseCell: (data) => {
-          if (data.section === 'body') {
-            data.cell.styles.fillColor = [240, 253, 244];
-          }
-        }
-      });
+      currentY = startYBox + boxInnerHeight + 20;
 
     } else {
       // -------------------------------------------------------------
       // SCENARIO B: ACTIVE EXPENSES EXIST
-      // Calculate net transfers ONLY on active expenses
+      // Renders Net Minimum Transfer Flow & Audit Calculations
       // -------------------------------------------------------------
+      if (currentY > 190) {
+        doc.addPage();
+        currentY = 15;
+      }
+
       renderHeading('Net Minimum Transfer Flow', 14, currentY);
       currentY += 5;
 
@@ -469,12 +448,11 @@ export async function exportSpaceDataToPDF(
         body: netRows.length > 0 ? netRows : [['-', '-', 'No net transfers required', 'Balanced']],
         theme: 'grid',
         headStyles: { fillColor: [234, 88, 12], textColor: 255, fontStyle: 'bold' },
-        // Fully Highlighted Net Table Cells
         styles: { 
           fontSize: 9, 
           cellPadding: 3, 
           fontStyle: 'bold',
-          fillColor: [254, 243, 199], // Soft Amber Highlight
+          fillColor: [254, 243, 199], 
           textColor: [120, 53, 15] 
         },
         columnStyles: {
@@ -484,337 +462,338 @@ export async function exportSpaceDataToPDF(
           3: { cellWidth: 42 },
         },
       });
-    }
 
-    currentY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 16 : currentY + 16;
+      currentY = (doc as any).lastAutoTable.finalY + 16;
 
-    // --- 9. UNIFORM TABLE & AUDIT EXAMPLE ---
-    const sampleMemberId = activeExpensesOnly.length > 0 && calculateNetTransfers
-      ? calculateNetTransfers(activeExpensesOnly, members)[0]?.from || members[0]?.id
-      : members[0]?.id;
+      // --- AUDIT SECTION (Only rendered when there are unsettled cards) ---
+      const sampleMemberId = calculateNetTransfers(activeExpensesOnly, members)[0]?.from || members[0]?.id;
+      const sampleMemberName = getMemberName(sampleMemberId);
 
-    const sampleMemberName = getMemberName(sampleMemberId);
+      let totalPaid = 0;
+      let totalOwed = 0;
+      const tableBodyRaw: Array<{ title: string; currSym: string; paid: number; share: number; netExp: number }> = [];
+      const primaryCurrency = getCurrencySymbol(filteredExpenses[0]?.currency || '');
 
-    let totalPaid = 0;
-    let totalOwed = 0;
-    const tableBodyRaw: Array<{ title: string; currSym: string; paid: number; share: number; netExp: number }> = [];
-    const primaryCurrency = getCurrencySymbol(filteredExpenses[0]?.currency || '');
+      filteredExpenses.forEach(exp => {
+        const currSym = getCurrencySymbol(exp.currency);
+        const paid = exp.paidBy?.[sampleMemberId] || 0;
+        const isParticipant = exp.participants?.includes(sampleMemberId);
+        const numP = exp.participants?.length || 1;
+        const share = isParticipant ? (exp.totalAmount / numP) : 0;
 
-    filteredExpenses.forEach(exp => {
-      const currSym = getCurrencySymbol(exp.currency);
-      const paid = exp.paidBy?.[sampleMemberId] || 0;
-      const isParticipant = exp.participants?.includes(sampleMemberId);
-      const numP = exp.participants?.length || 1;
-      const share = isParticipant ? (exp.totalAmount / numP) : 0;
-
-      if (paid > 0 || share > 0) {
-        totalPaid += paid;
-        totalOwed += share;
-        const netExp = paid - share;
-        
-        tableBodyRaw.push({
-          title: exp.title,
-          currSym,
-          paid,
-          share,
-          netExp
-        });
-      }
-    });
-
-    const netBalance = totalPaid - totalOwed;
-    const activeNetTxs = calculateNetTransfers ? calculateNetTransfers(activeExpensesOnly, members) : [];
-    const finalTransferTarget = activeNetTxs.find((t: any) => t.from === sampleMemberId);
-    const targetReceiverName = finalTransferTarget 
-      ? (finalTransferTarget.toName || getMemberName(finalTransferTarget.to)) 
-      : 'Receiver';
-
-    const pointLineHeight = 3.5;
-    const pointGap = 4;
-    const pointIndent = 5;
-    const textMaxWidth = pageWidth - 36;
-
-    const points = [
-      {
-        title: '1. Net Balance Calculation: ',
-        desc: "Each member's total payments are balanced against their total assigned expense shares. Think of it as UPI diet mode — same debts settled, way fewer transfers."
-      },
-      {
-        title: '2. Debt Minimization: ',
-        desc: "Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions. No middlemen, no chains, no \"wait who owes who again\" — just the shortest route to zero balance."
-      },
-      {
-        title: '3. For Instance - ',
-        desc: `From the above Expenses, taking as an example of '${sampleMemberName}' ; the net transfer was simplified as-`
-      }
-    ];
-
-    const processPoint = (point: {title: string, desc: string}, startY: number, draw: boolean = false) => {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      if (draw) doc.setTextColor(107, 114, 128);
-      
-      const titleWidth = doc.getTextWidth(point.title);
-      if (draw) doc.text(point.title, 18, startY);
-      
-      doc.setFont('helvetica', 'normal');
-      const words = point.desc.split(' ');
-      let currentLine = '';
-      let currentX = 18 + titleWidth;
-      let currentY = startY;
-      let lineLimit = textMaxWidth - titleWidth;
-
-      for (let word of words) {
-        const testLine = currentLine + (currentLine ? ' ' : '') + word;
-        const testWidth = doc.getTextWidth(testLine);
-        
-        if (testWidth > lineLimit) {
-          if (draw) doc.text(currentLine, currentX, currentY);
-          currentY += pointLineHeight;
-          currentX = 18 + pointIndent;
-          currentLine = word;
-          lineLimit = textMaxWidth - pointIndent;
-        } else {
-          currentLine = testLine;
-        }
-      }
-      if (currentLine) {
-        if (draw) doc.text(currentLine, currentX, currentY);
-      }
-      return currentY;
-    };
-
-    let mockY = currentY + 7;
-    mockY += pointLineHeight + 5;
-    for (let i = 0; i < points.length; i++) {
-      const lastLineY = processPoint(points[i], mockY, false);
-      mockY = lastLineY + pointLineHeight + pointGap;
-    }
-    
-    const topBoxPortion = mockY - currentY;
-    const rowEstimate = 7.5;
-    const tableEstHeight = tableBodyRaw.length > 0 ? (tableBodyRaw.length + 1) * rowEstimate + 6 : 0;
-    const bottomTextGap = tableBodyRaw.length > 0 ? 32 : 0;
-    const paddingBottom = 6;
-    
-    const containerBoxHeight = topBoxPortion + tableEstHeight + bottomTextGap + paddingBottom;
-
-    if (currentY + containerBoxHeight > pageHeight - 15) {
-      doc.addPage();
-      currentY = 15;
-    }
-
-    // Draw Grey Container background
-    doc.setFillColor(243, 244, 246);
-    doc.setDrawColor(209, 213, 219);
-    doc.roundedRect(14, currentY, pageWidth - 28, containerBoxHeight, 2, 2, 'FD');
-
-    let textY = currentY + 7;
-
-    doc.setFont('helvetica', 'bolditalic');
-    doc.setFontSize(8);
-    doc.setTextColor(26, 54, 93);
-    const mainTitle = 'How Net Minimum Transfers are Calculated:';
-    doc.text(mainTitle, 18, textY);
-    
-    const mtWidth = doc.getTextWidth(mainTitle);
-    doc.setLineWidth(0.3);
-    doc.setDrawColor(26, 54, 93);
-    doc.line(18, textY + 1.2, 18 + mtWidth, textY + 1.2);
-    
-    textY += pointLineHeight + 5;
-
-    for (let i = 0; i < points.length; i++) {
-      const lastLineY = processPoint(points[i], textY, true);
-      textY = lastLineY + pointLineHeight + pointGap;
-    }
-
-    if (tableBodyRaw.length > 0) {
-      const tableBodyForAutoTable = tableBodyRaw.map(r => [
-        r.title,
-        '', 
-        `${r.currSym} ${r.share.toFixed(2)}`,
-        ''  
-      ]);
-
-      autoTable(doc, {
-        startY: textY,
-        margin: { left: 18, right: 18 },
-        tableWidth: pageWidth - 36,
-        head: [['Title', 'Paid', 'Equal Shares', 'Net Amount']],
-        body: tableBodyForAutoTable,
-        theme: 'grid',
-        styles: { 
-          font: 'helvetica',
-          fontSize: 8, 
-          cellPadding: 2, 
-          textColor: [107, 114, 128], 
-          lineColor: [209, 213, 219],
-          lineWidth: 0.1
-        },
-        headStyles: { 
-          fillColor: [229, 231, 235], 
-          textColor: [107, 114, 128], 
-          fontStyle: 'normal' 
-        },
-        columnStyles: {
-          0: { cellWidth: 'auto' },
-          1: { cellWidth: 35 },
-          2: { cellWidth: 35 },
-          3: { cellWidth: 35 },
-        },
-        didDrawCell: (data) => {
-          if (data.section === 'body') {
-            const rowData = tableBodyRaw[data.row.index];
-            if (!rowData) return;
-
-            const textYPos = data.cell.y + (data.cell.height / 2) + 1;
-            const textXPos = data.cell.x + 2;
-
-            if (data.column.index === 1) {
-              doc.setFont('helvetica', 'normal');
-              doc.setFontSize(8);
-              doc.setTextColor(107, 114, 128);
-              const currText = `${rowData.currSym} `;
-              doc.text(currText, textXPos, textYPos);
-
-              const currWidth = doc.getTextWidth(currText);
-              if (rowData.paid > 0) {
-                doc.setTextColor(22, 163, 74);
-              } else {
-                doc.setTextColor(107, 114, 128);
-              }
-              doc.text(rowData.paid.toFixed(2), textXPos + currWidth, textYPos);
-            }
-
-            if (data.column.index === 3) {
-              doc.setFont('helvetica', 'normal');
-              doc.setFontSize(8);
-              doc.setTextColor(107, 114, 128);
-              const currText = `${rowData.currSym} `;
-              doc.text(currText, textXPos, textYPos);
-
-              const currWidth = doc.getTextWidth(currText);
-              const sign = rowData.netExp >= 0 ? '+' : '-';
-              const amtValStr = `${sign}${Math.abs(rowData.netExp).toFixed(2)}`;
-
-              if (rowData.netExp >= 0) {
-                doc.setTextColor(22, 163, 74);
-              } else {
-                doc.setTextColor(220, 38, 38);
-              }
-              doc.text(amtValStr, textXPos + currWidth, textYPos);
-            }
-          }
+        if (paid > 0 || share > 0) {
+          totalPaid += paid;
+          totalOwed += share;
+          const netExp = paid - share;
+          
+          tableBodyRaw.push({
+            title: exp.title,
+            currSym,
+            paid,
+            share,
+            netExp
+          });
         }
       });
 
-      textY = (doc as any).lastAutoTable.finalY + 7;
+      const netBalance = totalPaid - totalOwed;
+      const activeNetTxs = calculateNetTransfers(activeExpensesOnly, members);
+      const finalTransferTarget = activeNetTxs.find((t: any) => t.from === sampleMemberId);
+      const targetReceiverName = finalTransferTarget 
+        ? (finalTransferTarget.toName || getMemberName(finalTransferTarget.to)) 
+        : 'Receiver';
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
+      const pointLineHeight = 3.5;
+      const pointGap = 4;
+      const pointIndent = 5;
+      const textMaxWidth = pageWidth - 36;
+
+      const points = [
+        {
+          title: '1. Net Balance Calculation: ',
+          desc: "Each member's total payments are balanced against their total assigned expense shares. Think of it as UPI diet mode — same debts settled, way fewer transfers."
+        },
+        {
+          title: '2. Debt Minimization: ',
+          desc: "Individual per-expense transfers are combined to settle all space debts in the minimum possible transactions. No middlemen, no chains, no \"wait who owes who again\" — just the shortest route to zero balance."
+        },
+        {
+          title: '3. For Instance - ',
+          desc: `From the above Expenses, taking as an example of '${sampleMemberName}' ; the net transfer was simplified as-`
+        }
+      ];
+
+      const processPoint = (point: {title: string, desc: string}, startY: number, draw: boolean = false) => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        if (draw) doc.setTextColor(107, 114, 128);
+        
+        const titleWidth = doc.getTextWidth(point.title);
+        if (draw) doc.text(point.title, 18, startY);
+        
+        doc.setFont('helvetica', 'normal');
+        const words = point.desc.split(' ');
+        let currentLine = '';
+        let currentX = 18 + titleWidth;
+        let currentY = startY;
+        let lineLimit = textMaxWidth - titleWidth;
+
+        for (let word of words) {
+          const testLine = currentLine + (currentLine ? ' ' : '') + word;
+          const testWidth = doc.getTextWidth(testLine);
+          
+          if (testWidth > lineLimit) {
+            if (draw) doc.text(currentLine, currentX, currentY);
+            currentY += pointLineHeight;
+            currentX = 18 + pointIndent;
+            currentLine = word;
+            lineLimit = textMaxWidth - pointIndent;
+          } else {
+            currentLine = testLine;
+          }
+        }
+        if (currentLine) {
+          if (draw) doc.text(currentLine, currentX, currentY);
+        }
+        return currentY;
+      };
+
+      let mockY = currentY + 7;
+      mockY += pointLineHeight + 5;
+      for (let i = 0; i < points.length; i++) {
+        const lastLineY = processPoint(points[i], mockY, false);
+        mockY = lastLineY + pointLineHeight + pointGap;
+      }
       
-      const equalSharesColX = pageWidth - 88;
-      const netAmountColX = pageWidth - 53;
-      const actionColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38]; 
-
-      // 1. Total Paid
-      doc.setTextColor(0, 0, 0); 
-      doc.text('Total Paid', equalSharesColX, textY);
-      doc.setTextColor(0, 0, 0); 
-      const currStr1 = `${primaryCurrency} `;
-      doc.text(currStr1, netAmountColX, textY);
-      doc.setTextColor(22, 163, 74); 
-      doc.text(totalPaid.toFixed(2), netAmountColX + doc.getTextWidth(currStr1), textY);
-      textY += 5;
-
-      // 2. Should Pay/Receive
-      doc.setTextColor(0, 0, 0); 
-      doc.text('Should Pay/Receive', equalSharesColX, textY);
-      doc.setTextColor(0, 0, 0); 
-      const currStr2 = `${primaryCurrency} `;
-      doc.text(currStr2, netAmountColX, textY);
-      doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
-      doc.text(totalOwed.toFixed(2), netAmountColX + doc.getTextWidth(currStr2), textY);
-      textY += 5;
-
-      // 3. Net Difference
-      const netSign = netBalance >= 0 ? '+' : '-';
-      doc.setTextColor(0, 0, 0); 
-      doc.text('Net Difference', equalSharesColX, textY);
-      doc.setTextColor(0, 0, 0); 
-      const currStr3 = `${primaryCurrency} `;
-      doc.text(currStr3, netAmountColX, textY);
-      doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
-      doc.text(`${netSign}${Math.abs(netBalance).toFixed(2)}`, netAmountColX + doc.getTextWidth(currStr3), textY);
-      textY += 7;
-
-      // 4. Final Action
-      const titleX = 18;
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 0, 0);
-      const actionTitle = 'Final Action:';
-      doc.text(actionTitle, titleX, textY);
+      const topBoxPortion = mockY - currentY;
+      const rowEstimate = 7.5;
+      const tableEstHeight = tableBodyRaw.length > 0 ? (tableBodyRaw.length + 1) * rowEstimate + 6 : 0;
+      const bottomTextGap = tableBodyRaw.length > 0 ? 32 : 0;
+      const paddingBottom = 6;
       
-      const actionTitleWidth = doc.getTextWidth(actionTitle) + 4; 
-      const badgeX = titleX + actionTitleWidth;
+      const containerBoxHeight = topBoxPortion + tableEstHeight + bottomTextGap + paddingBottom;
 
-      let part1 = '';
-      let part2Amount = '';
-      let part3 = '';
-
-      if (netBalance < 0) {
-        part1 = `${sampleMemberName} pays `;
-        part2Amount = `${primaryCurrency} ${Math.abs(netBalance).toFixed(2)}`;
-        part3 = ` directly to ${targetReceiverName}`;
-      } else {
-        part1 = `${sampleMemberName} receives `;
-        part2Amount = `${primaryCurrency} ${netBalance.toFixed(2)}`;
-        part3 = ` in total settlement`;
+      if (currentY + containerBoxHeight > pageHeight - 15) {
+        doc.addPage();
+        currentY = 15;
       }
 
-      doc.setFont('helvetica', 'bold');
+      doc.setFillColor(243, 244, 246);
+      doc.setDrawColor(209, 213, 219);
+      doc.roundedRect(14, currentY, pageWidth - 28, containerBoxHeight, 2, 2, 'FD');
+
+      let textY = currentY + 7;
+
+      doc.setFont('helvetica', 'bolditalic');
       doc.setFontSize(8);
-
-      const w1 = doc.getTextWidth(part1);
-      const w2 = doc.getTextWidth(part2Amount);
-      const w3 = doc.getTextWidth(part3);
-      const totalMsgWidth = w1 + w2 + w3;
-
-      const bgFill = netBalance >= 0 ? [220, 252, 231] : [254, 226, 226]; 
-      const borderColor = netBalance >= 0 ? [187, 247, 208] : [254, 202, 202];
-      const amountColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38];
-
-      const pPaddingX = 2.5;
-      doc.setFillColor(bgFill[0], bgFill[1], bgFill[2]);
-      doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+      doc.setTextColor(26, 54, 93);
+      const mainTitle = 'How Net Minimum Transfers are Calculated:';
+      doc.text(mainTitle, 18, textY);
       
-      doc.roundedRect(
-        badgeX - pPaddingX, 
-        textY - 3.5, 
-        totalMsgWidth + (pPaddingX * 2), 
-        5.2, 
-        1, 
-        1, 
-        'FD'
-      );
+      const mtWidth = doc.getTextWidth(mainTitle);
+      doc.setLineWidth(0.3);
+      doc.setDrawColor(26, 54, 93);
+      doc.line(18, textY + 1.2, 18 + mtWidth, textY + 1.2);
+      
+      textY += pointLineHeight + 5;
 
-      let curX = badgeX;
-      doc.setTextColor(0, 0, 0);
-      doc.text(part1, curX, textY);
-      curX += w1;
+      for (let i = 0; i < points.length; i++) {
+        const lastLineY = processPoint(points[i], textY, true);
+        textY = lastLineY + pointLineHeight + pointGap;
+      }
 
-      doc.setTextColor(amountColor[0], amountColor[1], amountColor[2]);
-      doc.text(part2Amount, curX, textY);
-      curX += w2;
+      if (tableBodyRaw.length > 0) {
+        const tableBodyForAutoTable = tableBodyRaw.map(r => [
+          r.title,
+          '', 
+          `${r.currSym} ${r.share.toFixed(2)}`,
+          ''  
+        ]);
 
-      doc.setTextColor(0, 0, 0);
-      doc.text(part3, curX, textY);
+        autoTable(doc, {
+          startY: textY,
+          margin: { left: 18, right: 18 },
+          tableWidth: pageWidth - 36,
+          head: [['Title', 'Paid', 'Equal Shares', 'Net Amount']],
+          body: tableBodyForAutoTable,
+          theme: 'grid',
+          styles: { 
+            font: 'helvetica',
+            fontSize: 8, 
+            cellPadding: 2, 
+            textColor: [107, 114, 128], 
+            lineColor: [209, 213, 219],
+            lineWidth: 0.1
+          },
+          headStyles: { 
+            fillColor: [229, 231, 235], 
+            textColor: [107, 114, 128], 
+            fontStyle: 'normal' 
+          },
+          columnStyles: {
+            0: { cellWidth: 'auto' },
+            1: { cellWidth: 35 },
+            2: { cellWidth: 35 },
+            3: { cellWidth: 35 },
+          },
+          didDrawCell: (data) => {
+            if (data.section === 'body') {
+              const rowData = tableBodyRaw[data.row.index];
+              if (!rowData) return;
+
+              const textYPos = data.cell.y + (data.cell.height / 2) + 1;
+              const textXPos = data.cell.x + 2;
+
+              if (data.column.index === 1) {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8);
+                doc.setTextColor(107, 114, 128);
+                const currText = `${rowData.currSym} `;
+                doc.text(currText, textXPos, textYPos);
+
+                const currWidth = doc.getTextWidth(currText);
+                if (rowData.paid > 0) {
+                  doc.setTextColor(22, 163, 74);
+                } else {
+                  doc.setTextColor(107, 114, 128);
+                }
+                doc.text(rowData.paid.toFixed(2), textXPos + currWidth, textYPos);
+              }
+
+              if (data.column.index === 3) {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8);
+                doc.setTextColor(107, 114, 128);
+                const currText = `${rowData.currSym} `;
+                doc.text(currText, textXPos, textYPos);
+
+                const currWidth = doc.getTextWidth(currText);
+                const sign = rowData.netExp >= 0 ? '+' : '-';
+                const amtValStr = `${sign}${Math.abs(rowData.netExp).toFixed(2)}`;
+
+                if (rowData.netExp >= 0) {
+                  doc.setTextColor(22, 163, 74);
+                } else {
+                  doc.setTextColor(220, 38, 38);
+                }
+                doc.text(amtValStr, textXPos + currWidth, textYPos);
+              }
+            }
+          }
+        });
+
+        textY = (doc as any).lastAutoTable.finalY + 7;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        
+        const equalSharesColX = pageWidth - 88;
+        const netAmountColX = pageWidth - 53;
+        const actionColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38]; 
+
+        // Total Paid
+        doc.setTextColor(0, 0, 0); 
+        doc.text('Total Paid', equalSharesColX, textY);
+        doc.setTextColor(0, 0, 0); 
+        const currStr1 = `${primaryCurrency} `;
+        doc.text(currStr1, netAmountColX, textY);
+        doc.setTextColor(22, 163, 74); 
+        doc.text(totalPaid.toFixed(2), netAmountColX + doc.getTextWidth(currStr1), textY);
+        textY += 5;
+
+        // Should Pay/Receive
+        doc.setTextColor(0, 0, 0); 
+        doc.text('Should Pay/Receive', equalSharesColX, textY);
+        doc.setTextColor(0, 0, 0); 
+        const currStr2 = `${primaryCurrency} `;
+        doc.text(currStr2, netAmountColX, textY);
+        doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
+        doc.text(totalOwed.toFixed(2), netAmountColX + doc.getTextWidth(currStr2), textY);
+        textY += 5;
+
+        // Net Difference
+        const netSign = netBalance >= 0 ? '+' : '-';
+        doc.setTextColor(0, 0, 0); 
+        doc.text('Net Difference', equalSharesColX, textY);
+        doc.setTextColor(0, 0, 0); 
+        const currStr3 = `${primaryCurrency} `;
+        doc.text(currStr3, netAmountColX, textY);
+        doc.setTextColor(actionColor[0], actionColor[1], actionColor[2]);
+        doc.text(`${netSign}${Math.abs(netBalance).toFixed(2)}`, netAmountColX + doc.getTextWidth(currStr3), textY);
+        textY += 7;
+
+        // Final Action
+        const titleX = 18;
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        const actionTitle = 'Final Action:';
+        doc.text(actionTitle, titleX, textY);
+        
+        const actionTitleWidth = doc.getTextWidth(actionTitle) + 4; 
+        const badgeX = titleX + actionTitleWidth;
+
+        let part1 = '';
+        let part2Amount = '';
+        let part3 = '';
+
+        if (netBalance < 0) {
+          part1 = `${sampleMemberName} pays `;
+          part2Amount = `${primaryCurrency} ${Math.abs(netBalance).toFixed(2)}`;
+          part3 = ` directly to ${targetReceiverName}`;
+        } else {
+          part1 = `${sampleMemberName} receives `;
+          part2Amount = `${primaryCurrency} ${netBalance.toFixed(2)}`;
+          part3 = ` in total settlement`;
+        }
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+
+        const w1 = doc.getTextWidth(part1);
+        const w2 = doc.getTextWidth(part2Amount);
+        const w3 = doc.getTextWidth(part3);
+        const totalMsgWidth = w1 + w2 + w3;
+
+        const bgFill = netBalance >= 0 ? [220, 252, 231] : [254, 226, 226]; 
+        const borderColor = netBalance >= 0 ? [187, 247, 208] : [254, 202, 202];
+        const amountColor = netBalance >= 0 ? [22, 163, 74] : [220, 38, 38];
+
+        const pPaddingX = 2.5;
+        doc.setFillColor(bgFill[0], bgFill[1], bgFill[2]);
+        doc.setDrawColor(borderColor[0], borderColor[1], borderColor[2]);
+        
+        doc.roundedRect(
+          badgeX - pPaddingX, 
+          textY - 3.5, 
+          totalMsgWidth + (pPaddingX * 2), 
+          5.2, 
+          1, 
+          1, 
+          'FD'
+        );
+
+        let curX = badgeX;
+        doc.setTextColor(0, 0, 0);
+        doc.text(part1, curX, textY);
+        curX += w1;
+
+        doc.setTextColor(amountColor[0], amountColor[1], amountColor[2]);
+        doc.text(part2Amount, curX, textY);
+        curX += w2;
+
+        doc.setTextColor(0, 0, 0);
+        doc.text(part3, curX, textY);
+      }
+
+      currentY = currentY + containerBoxHeight + 12;
     }
 
-    currentY = currentY + containerBoxHeight + 12;
+    // 9. End of Report Divider & Text
+    if (currentY > pageHeight - 25) {
+      doc.addPage();
+      currentY = 20;
+    }
 
-    // End of Report Divider & Text
     doc.setLineWidth(0.5);
     doc.setDrawColor(229, 231, 235);
     doc.line(14, currentY, pageWidth - 14, currentY);
@@ -825,7 +804,7 @@ export async function exportSpaceDataToPDF(
     doc.setTextColor(75, 85, 99);
     doc.text('End of Report', pageWidth / 2, currentY, { align: 'center' });
 
-    // Clean Footer on all pages
+    // 10. Clean Footer on all pages
     const totalPages = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
