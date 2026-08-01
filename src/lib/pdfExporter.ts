@@ -272,7 +272,7 @@ export async function exportSpaceDataToPDF(
 
     currentY = (doc as any).lastAutoTable.finalY + 18;
 
-    // 7. Itemized Expense Payment Flow with Card Separation Gaps
+    // 7. Itemized Expense Payment Flow with Visual Separator Gaps
     if (currentY > 210) {
       doc.addPage();
       currentY = 15;
@@ -282,12 +282,17 @@ export async function exportSpaceDataToPDF(
     currentY += 5;
 
     const itemizedTxRows: any[] = [];
-    const expenseCardBoundaries: number[] = [];
+    const spacerRowIndices = new Set<number>();
 
-    filteredExpenses.forEach(exp => {
+    filteredExpenses.forEach((exp, expIdx) => {
       const txs = calculateExpenseTransactions(exp);
       const currencySym = getCurrencySymbol(exp.currency);
-      expenseCardBoundaries.push(itemizedTxRows.length);
+
+      // Insert a subtle empty spacer row before starting consecutive expense cards
+      if (expIdx > 0) {
+        spacerRowIndices.add(itemizedTxRows.length);
+        itemizedTxRows.push(['', '', '', '', '']);
+      }
 
       if (txs.length === 0) {
         const expStatus = getExpenseStatus(exp);
@@ -332,10 +337,15 @@ export async function exportSpaceDataToPDF(
       didParseCell: (data) => {
         if (data.section === 'body') {
           const rowIndex = data.row.index;
-          const isCardHeaderRow = expenseCardBoundaries.includes(rowIndex);
 
-          if (isCardHeaderRow && rowIndex > 0) {
-            data.cell.styles.cellPadding = { top: 4.5, bottom: 2.5, left: 2.5, right: 2.5 };
+          // Render spacer row as a clean gap with no borders
+          if (spacerRowIndices.has(rowIndex)) {
+            data.cell.styles.fillColor = [255, 255, 255];
+            data.cell.styles.lineColor = [255, 255, 255];
+            data.cell.styles.lineWidth = 0;
+            data.cell.styles.cellPadding = { top: 1.2, bottom: 1.2, left: 0, right: 0 };
+            data.cell.styles.fontSize = 2;
+            return;
           }
 
           const rawRow = data.row.raw as any[];
@@ -455,8 +465,8 @@ export async function exportSpaceDataToPDF(
 
       currentY = (doc as any).lastAutoTable.finalY + 16;
 
-      // --- AUDIT SECTION (Evaluates ONLY ACTIVE UNSETTLED EXPENSES) ---
-      const sampleMemberId = activeNetTxs?.[0]?.from || members[0]?.id;
+      // --- AUDIT SECTION (Evaluates ONLY activeUnsettled expenses, in perfect alignment with Net Transfers) ---
+      const sampleMemberId = netTransfers?.[0]?.from || members[0]?.id;
       const sampleMemberName = getMemberName(sampleMemberId);
 
       let totalPaid = 0;
@@ -464,7 +474,6 @@ export async function exportSpaceDataToPDF(
       const tableBodyRaw: Array<{ title: string; currSym: string; paid: number; share: number; netExp: number }> = [];
       const primaryCurrency = getCurrencySymbol(activeExpensesOnly[0]?.currency || '');
 
-      // Loop over activeExpensesOnly so fully settled expenses are excluded here too!
       activeExpensesOnly.forEach(exp => {
         const currSym = getCurrencySymbol(exp.currency);
         const paid = exp.paidBy?.[sampleMemberId] || 0;
@@ -488,7 +497,7 @@ export async function exportSpaceDataToPDF(
       });
 
       const netBalance = totalPaid - totalOwed;
-      const finalTransferTarget = activeNetTxs.find((t: any) => t.from === sampleMemberId);
+      const finalTransferTarget = netTransfers.find((t: any) => t.from === sampleMemberId);
       const targetReceiverName = finalTransferTarget 
         ? (finalTransferTarget.toName || getMemberName(finalTransferTarget.to)) 
         : 'Receiver';
