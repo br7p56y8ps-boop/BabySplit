@@ -10,15 +10,21 @@ function cleanCurrencySymbol(c?: string): string {
   if (lower === 'taka' || lower === 'bdt' || lower === '৳') return '৳';
   if (lower === 'inr' || lower === '₹') return '₹';
   if (lower === 'usd' || lower === '$') return '$';
-  const s = c.trim();
-  return s;
+  return c.trim();
 }
 
+/**
+ * Calculates net minimum transfers ONLY for active / unsettled expenses.
+ * Fully settled expense cards are completely excluded from this calculation.
+ */
 function calculateNetMinimumTransfers(expenses: Expense[]): { from: string; to: string; amount: number; currency: string }[] {
   const balances: Record<string, number> = {};
   let defaultCurrency = '৳';
 
-  expenses.forEach(exp => {
+  // Only consider expenses that are NOT fully settled
+  const activeExpenses = expenses.filter(exp => getExpenseStatus(exp) !== 'Fully Settled');
+
+  activeExpenses.forEach(exp => {
     if (!exp.participants || exp.participants.length === 0) return;
     const share = exp.totalAmount / exp.participants.length;
     if (exp.currency) defaultCurrency = cleanCurrencySymbol(exp.currency);
@@ -81,13 +87,12 @@ export function exportSpaceDataToPDF(
   const doc = new jsPDF();
   const safeSpaceName = space.name || 'Space';
 
-  // Helper mapping member ID -> Name
   const getMemberName = (id: string) => {
     const m = members.find((mem) => mem.id === id);
     return m ? m.name : 'Unknown';
   };
 
-  // Filter expenses based on user selection
+  // Filter expenses based on user export selection
   const filteredExpenses = expenses.filter((exp) => {
     const status = getExpenseStatus(exp);
     if (filter === 'settled') return status === 'Fully Settled';
@@ -97,7 +102,7 @@ export function exportSpaceDataToPDF(
 
   let currentY = 15;
 
-  // Header Title
+  // Document Header
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(16, 185, 129); // Emerald color
@@ -160,7 +165,7 @@ export function exportSpaceDataToPDF(
 
   currentY = (doc as any).lastAutoTable.finalY + 10;
 
-  // 3. Expenses Report Section
+  // 3. Expense Report Section (Includes Settled & Partial cards with whole-row highlights)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(17, 24, 39);
@@ -170,29 +175,24 @@ export function exportSpaceDataToPDF(
   const expensesBody = filteredExpenses.map((exp) => {
     const currencyStr = cleanCurrencySymbol(exp.currency);
     
-    // Paid By details
     const paidByStr = Object.entries(exp.paidBy || {})
       .map(([mId, amt]) => `${getMemberName(mId)}: ${currencyStr}${amt}`)
       .join(', ');
 
-    // Participants
     const participantsStr = (exp.participants || [])
       .map((mId) => getMemberName(mId))
       .join(', ');
 
-    // Equal Share
     const pCount = exp.participants?.length || 1;
     const shareAmt = (exp.totalAmount / pCount).toFixed(2);
     const equalShareStr = `${currencyStr}${shareAmt} / person`;
 
-    // Settlement Status
     const status = getExpenseStatus(exp);
 
-    // Settled Date & Settled By
     let settledInfo = 'Not Settled';
     if (exp.settledAt) {
       const settledDate = format(new Date(exp.settledAt), 'PP');
-      const settledBy = exp.settledById ? getMemberName(exp.settledById) : 'Unknown';
+      const settledBy = exp.settledById ? getMemberName(exp.settledById) : 'System';
       settledInfo = `${settledDate}\nBy: ${settledBy}`;
     }
 
@@ -230,59 +230,37 @@ export function exportSpaceDataToPDF(
     headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
     styles: { fontSize: 8, cellPadding: 2.5 },
     columnStyles: {
-      0: { cellWidth: 30 }, // Title
-      1: { cellWidth: 18 }, // Date
-      2: { cellWidth: 20 }, // Amount
-      3: { cellWidth: 28 }, // Paid By
-      4: { cellWidth: 28 }, // Participants
-      5: { cellWidth: 20 }, // Equal Share
-      6: { cellWidth: 18 }, // Status
-      7: { cellWidth: 20 }, // Settled Date & By
+      0: { cellWidth: 30 },
+      1: { cellWidth: 18 },
+      2: { cellWidth: 20 },
+      3: { cellWidth: 28 },
+      4: { cellWidth: 28 },
+      5: { cellWidth: 20 },
+      6: { cellWidth: 18 },
+      7: { cellWidth: 20 },
+    },
+    // Whole row highlighting based on expense status
+    didParseCell: (data) => {
+      if (data.section === 'body' && filteredExpenses[data.row.index]) {
+        const exp = filteredExpenses[data.row.index];
+        const status = getExpenseStatus(exp);
+
+        if (status === 'Fully Settled') {
+          data.cell.styles.fillColor = [236, 253, 245]; // Soft Emerald tint
+          data.cell.styles.textColor = [6, 78, 59];
+        } else if (status === 'Partially Settled') {
+          data.cell.styles.fillColor = [254, 243, 199]; // Soft Amber tint
+          data.cell.styles.textColor = [120, 53, 15];
+        }
+      }
     },
   });
 
   currentY = (doc as any).lastAutoTable.finalY + 10;
 
-  // 4. Transaction Flow Section
-  if (filteredExpenses.length === 1) {
-    // Single Expense Transaction Flow Table
-    if (currentY > 230) {
-      doc.addPage();
-      currentY = 15;
-    }
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(17, 24, 39);
-    doc.text('Transaction Flow', 14, currentY);
-    currentY += 4;
-
-    const singleExp = filteredExpenses[0];
-    const txs = calculateExpenseTransactions(singleExp);
-    const currSymbol = singleExp.currency?.trim() || cleanCurrencySymbol(singleExp.currency);
-
-    const txsBody = txs.length > 0
-      ? txs.map(tx => [getMemberName(tx.from), getMemberName(tx.to), `${currSymbol}${tx.amount.toFixed(2)}`])
-      : [['-', '-', 'No transfers required']];
-
-    autoTable(doc, {
-      startY: currentY,
-      head: [['From', 'To', 'Amount']],
-      body: txsBody,
-      theme: 'grid',
-      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
-      styles: { fontSize: 9, cellPadding: 3 },
-      columnStyles: {
-        0: { cellWidth: 60 },
-        1: { cellWidth: 60 },
-        2: { cellWidth: 62 },
-      },
-    });
-
-    currentY = (doc as any).lastAutoTable.finalY + 10;
-  } else if (filteredExpenses.length > 1) {
-    // Multiple Expenses: Individual Transaction Flow tables per expense
-    if (currentY > 230) {
+  // 4. Per-Expense Transaction Flow Section
+  if (filteredExpenses.length > 0) {
+    if (currentY > 220) {
       doc.addPage();
       currentY = 15;
     }
@@ -299,10 +277,11 @@ export function exportSpaceDataToPDF(
         currentY = 15;
       }
 
+      const status = getExpenseStatus(exp);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(31, 41, 55);
-      doc.text(`Expense: ${exp.title}`, 14, currentY);
+      doc.text(`Expense: ${exp.title} [${status.toUpperCase()}]`, 14, currentY);
       currentY += 4;
 
       const txs = calculateExpenseTransactions(exp);
@@ -310,64 +289,182 @@ export function exportSpaceDataToPDF(
 
       const txsBody = txs.length > 0
         ? txs.map(tx => [getMemberName(tx.from), getMemberName(tx.to), `${currSymbol}${tx.amount.toFixed(2)}`])
-        : [['-', '-', 'No transfers required']];
+        : [['-', '-', 'No transfers required / Fully Settled']];
 
       autoTable(doc, {
         startY: currentY,
         head: [['From', 'To', 'Amount']],
         body: txsBody,
         theme: 'grid',
-        headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+        headStyles: { fillColor: status === 'Fully Settled' ? [16, 185, 129] : [79, 70, 229], textColor: 255, fontStyle: 'bold' },
         styles: { fontSize: 8.5, cellPadding: 2.5 },
         columnStyles: {
           0: { cellWidth: 60 },
           1: { cellWidth: 60 },
           2: { cellWidth: 62 },
         },
+        didParseCell: (data) => {
+          if (data.section === 'body' && status === 'Fully Settled') {
+            data.cell.styles.fillColor = [240, 253, 244];
+          }
+        },
       });
 
       currentY = (doc as any).lastAutoTable.finalY + 8;
     });
+  }
 
-    // Net Minimum Transfer Table (ONLY for multiple expenses)
-    if (currentY > 220) {
-      doc.addPage();
-      currentY = 15;
-    } else {
-      currentY += 4;
-    }
+  // Check active expenses (excluding settled cards)
+  const activeExpenses = filteredExpenses.filter(exp => getExpenseStatus(exp) !== 'Fully Settled');
 
+  // 5. Net Minimum Transfer Flow OR "All Expenses Settled" Container Box
+  if (currentY > 210) {
+    doc.addPage();
+    currentY = 15;
+  } else {
+    currentY += 4;
+  }
+
+  if (activeExpenses.length === 0) {
+    // -------------------------------------------------------------
+    // SCENARIO A: NO ACTIVE EXPENSE LEFT (ALL SETTLED)
+    // Erase Net Minimum Transfer Flow and show broad highlighted box
+    // -------------------------------------------------------------
+    const boxX = 14;
+    const boxWidth = doc.internal.pageSize.width - 28;
+    const startYBox = currentY;
+    
+    // Draw Box Content
+    currentY += 8;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(6, 95, 70); // Dark Emerald
+    doc.text('All Expenses Settled!', boxX + 8, currentY);
+
+    currentY += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 118, 110);
+    
+    const descLines = doc.splitTextToSize(
+      'There are no active expenses remaining to settle. All accounts within this space are fully balanced and settled.',
+      boxWidth - 16
+    );
+    doc.text(descLines, boxX + 8, currentY);
+
+    // Tight Border Calculation: End border exactly 1 line break offset (~6pt padding) below text
+    const textHeight = descLines.length * 4.5;
+    const endYBox = currentY + textHeight + 2; 
+
+    // Draw Container Box Background & Border
+    doc.setDrawColor(16, 185, 129);
+    doc.setFillColor(236, 253, 245);
+    doc.roundedRect(boxX, startYBox, boxWidth, endYBox - startYBox, 3, 3, 'FD');
+
+    // Re-render text on top of filled rectangle
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(6, 95, 70);
+    doc.text('All Expenses Settled!', boxX + 8, startYBox + 8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(15, 118, 110);
+    doc.text(descLines, boxX + 8, startYBox + 15);
+
+    currentY = endYBox + 10;
+
+    // Show Settled Transactions Flow Summary Section
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(17, 24, 39);
-    doc.text('Net Minimum Transfer', 14, currentY);
+    doc.text('Settled Transactions Flows', 14, currentY);
     currentY += 4;
 
-    const netTxs = calculateNetMinimumTransfers(filteredExpenses);
+    const settledTxsBody: string[][] = [];
+    filteredExpenses.forEach(exp => {
+      const txs = calculateExpenseTransactions(exp);
+      const currSymbol = exp.currency?.trim() || cleanCurrencySymbol(exp.currency);
+      txs.forEach(tx => {
+        settledTxsBody.push([
+          exp.title,
+          getMemberName(tx.from),
+          getMemberName(tx.to),
+          `${currSymbol}${tx.amount.toFixed(2)}`,
+          'Settled'
+        ]);
+      });
+    });
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Expense', 'From', 'To', 'Amount', 'Status']],
+      body: settledTxsBody.length > 0 ? settledTxsBody : [['-', '-', '-', '-', 'Fully Settled']],
+      theme: 'grid',
+      headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
+      styles: { fontSize: 8.5, cellPadding: 2.5 },
+      didParseCell: (data) => {
+        if (data.section === 'body') {
+          data.cell.styles.fillColor = [240, 253, 244];
+        }
+      }
+    });
+
+  } else {
+    // -------------------------------------------------------------
+    // SCENARIO B: ACTIVE EXPENSES EXIST
+    // Render Net Minimum Transfer Flow with Full Highlighting & Note
+    // -------------------------------------------------------------
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(16, 185, 129);
+    doc.text('Net Minimum Transfer Flow', 14, currentY);
+
+    currentY += 5;
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+
+    const noteText = "Note: Per-expense transaction flows above are provided for full transparency. Transactions should be completed according to the Net Minimum Transfer Flow table below to minimize the total number of transfers.";
+    const splitNote = doc.splitTextToSize(noteText, doc.internal.pageSize.width - 28);
+    doc.text(splitNote, 14, currentY);
+
+    currentY += (splitNote.length * 4) + 3;
+
+    // Calculate Net Minimum Transfers purely on UNSETTLED / active cards
+    const netTxs = calculateNetMinimumTransfers(activeExpenses);
     const netBody = netTxs.length > 0
       ? netTxs.map(tx => [
           getMemberName(tx.from),
           getMemberName(tx.to),
           `${tx.currency}${tx.amount.toFixed(2)}`,
+          'Pending Action'
         ])
-      : [['-', '-', 'No net transfers required']];
+      : [['-', '-', 'No net transfers required', 'Settled']];
 
     autoTable(doc, {
       startY: currentY,
-      head: [['From', 'To', 'Amount']],
+      head: [['From', 'To', 'Net Transfer Amount', 'Action Status']],
       body: netBody,
       theme: 'grid',
       headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' },
-      styles: { fontSize: 9, cellPadding: 3 },
+      styles: { 
+        fontSize: 9, 
+        cellPadding: 3,
+        fontStyle: 'bold',
+        fillColor: [240, 253, 244], // Fully highlighted cells
+        textColor: [6, 78, 59]
+      },
       columnStyles: {
-        0: { cellWidth: 60 },
-        1: { cellWidth: 60 },
-        2: { cellWidth: 62 },
+        0: { cellWidth: 45 },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 42 },
       },
     });
   }
 
-  // Clean Footer on all pages
+  // Footer on all pages
   const totalPages = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
@@ -382,7 +479,7 @@ export function exportSpaceDataToPDF(
     );
   }
 
-  // Save the PDF
+  // Save PDF file
   const fileName = `ExpenseReport_${safeSpaceName}_${filter}_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`;
   doc.save(fileName);
 }
