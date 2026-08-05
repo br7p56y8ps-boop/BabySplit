@@ -6,56 +6,49 @@ export const PUBLIC_SPACE_ID = 'public';
 export const PRESET_MEMBERS = ['Avraar', 'Chetan', 'Tenzing', 'Sanajaoba', 'Balbir', 'Dhanaraj'];
 
 export const initializePublicSpace = async (uid: string) => {
-  const spaceRef = doc(db, 'spaces', PUBLIC_SPACE_ID);
-  const spaceSnap = await getDoc(spaceRef);
+  try {
+    const spaceRef = doc(db, 'spaces', PUBLIC_SPACE_ID);
+    const spaceSnap = await getDoc(spaceRef);
 
-  const batch = writeBatch(db);
-  let hasWrites = false;
-
-  if (!spaceSnap.exists()) {
-    // Create public space
-    batch.set(spaceRef, {
-      name: 'Public Space',
-      type: 'public',
-      creatorUid: 'system',
-      createdAt: Date.now(),
-    });
-    hasWrites = true;
-  }
-
-  // Check if members exist
-  const membersQuery = query(collection(db, 'members'), where('spaceId', '==', PUBLIC_SPACE_ID));
-  const membersSnap = await getDocs(membersQuery);
-  
-  if (membersSnap.empty) {
-    // Create preset members
-    for (const name of PRESET_MEMBERS) {
-      const memberRef = doc(collection(db, 'members'));
-      batch.set(memberRef, {
-        spaceId: PUBLIC_SPACE_ID,
-        name,
-        pin: '1234',
-        isTemporary: false,
-        isPreset: true,
+    if (!spaceSnap.exists()) {
+      await setDoc(spaceRef, {
+        name: 'Public Space',
+        type: 'public',
+        creatorUid: 'system',
         createdAt: Date.now(),
       });
     }
-    hasWrites = true;
-  }
 
-  if (hasWrites) {
-    await batch.commit();
-  }
+    // Check if members exist
+    const membersQuery = query(collection(db, 'members'), where('spaceId', '==', PUBLIC_SPACE_ID));
+    const membersSnap = await getDocs(membersQuery);
+    
+    if (membersSnap.empty) {
+      // Create preset members individually to ensure creation
+      for (const name of PRESET_MEMBERS) {
+        const memberRef = doc(collection(db, 'members'));
+        await setDoc(memberRef, {
+          spaceId: PUBLIC_SPACE_ID,
+          name,
+          pin: '1234',
+          isTemporary: false,
+          isPreset: true,
+          createdAt: Date.now(),
+        });
+      }
+    }
 
-  // Ensure current user is in spaceMembers for public space
-  const memberAccessRef = doc(db, 'spaceMembers', `${PUBLIC_SPACE_ID}_${uid}`);
-  const memberAccessSnap = await getDoc(memberAccessRef);
-  if (!memberAccessSnap.exists()) {
-    await setDoc(memberAccessRef, {
-      spaceId: PUBLIC_SPACE_ID,
-      uid,
-      joinedAt: Date.now(),
-    });
+    // Ensure current user is in spaceMembers for public space
+    if (uid) {
+      const memberAccessRef = doc(db, 'spaceMembers', `${PUBLIC_SPACE_ID}_${uid}`);
+      await setDoc(memberAccessRef, {
+        spaceId: PUBLIC_SPACE_ID,
+        uid,
+        joinedAt: Date.now(),
+      }, { merge: true });
+    }
+  } catch (err) {
+    console.error("Error initializing public space:", err);
   }
 };
 
