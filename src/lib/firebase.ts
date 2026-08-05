@@ -11,9 +11,9 @@ export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true
 }, (firebaseConfig as any).firestoreDatabaseId);
 
-// Authenticate anonymously for persistent identity across sessions
+// Authenticate anonymously if enabled, or catch gracefully
 signInAnonymously(auth).catch((error) => {
-  console.error("Anonymous auth failed", error);
+  console.warn("Anonymous auth restricted or disabled in Firebase settings, falling back to local session user ID:", error.message);
 });
 
 // Connection validation check
