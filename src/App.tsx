@@ -5,8 +5,6 @@
 
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Analytics } from '@vercel/analytics/react';
-import { SpeedInsights } from '@vercel/speed-insights/react';
 import { AppProvider, useAppContext } from './contexts/AppContext';
 import BottomNav from './components/BottomNav';
 import TopBar from './components/TopBar';
@@ -76,8 +74,6 @@ export default function App() {
       <BrowserRouter>
         <AppContent />
       </BrowserRouter>
-      <Analytics />
-      <SpeedInsights />
     </AppProvider>
   );
 }
