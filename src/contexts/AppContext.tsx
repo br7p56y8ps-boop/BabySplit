@@ -28,15 +28,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        try {
-          await initializePublicSpace(currentUser.uid);
-        } catch (e) {
-          console.error("Failed to init public space", e);
+      let activeUser = currentUser;
+      if (!activeUser) {
+        let fallbackUid = localStorage.getItem('babysplit_anonymous_uid');
+        if (!fallbackUid) {
+          fallbackUid = 'anon_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now();
+          localStorage.setItem('babysplit_anonymous_uid', fallbackUid);
         }
-      } else {
-        setIsLoading(false);
+        activeUser = { uid: fallbackUid } as User;
+      }
+
+      setUser(activeUser);
+      try {
+        await initializePublicSpace(activeUser.uid);
+      } catch (e) {
+        console.error("Failed to init public space", e);
       }
     });
     return () => unsubscribe();
@@ -64,6 +70,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSpaces(loadedSpaces);
         setIsLoading(false);
 
+        if (!loadedSpaces.some(s => s.id === PUBLIC_SPACE_ID) && user) {
+          initializePublicSpace(user.uid);
+        }
+
         // If active space no longer exists, reset to public space
         if (activeSpaceId !== PUBLIC_SPACE_ID && !loadedSpaces.some(s => s.id === activeSpaceId)) {
           setActiveSpaceId(PUBLIC_SPACE_ID);
@@ -87,6 +97,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const m: Member[] = [];
       snapshot.forEach(doc => m.push({ id: doc.id, ...doc.data() } as Member));
       setMembers(m);
+
+      if (activeSpaceId === PUBLIC_SPACE_ID && snapshot.empty && user) {
+        initializePublicSpace(user.uid);
+      }
     });
     return () => unsubscribe();
   }, [activeSpaceId, user]);
